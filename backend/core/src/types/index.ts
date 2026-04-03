@@ -15,13 +15,14 @@ export interface Student {
 
 // Auth domain types
 export type AccountStatus = 'pending' | 'active';
-
+export type UserRole = 'student' | 'security' | 'admin';
 export interface StudentAccount {
   studentId: string;
   rollNumber: string;
   email: string;
   password: string; // plain text in mock, will be hashed later
   status: AccountStatus;
+  role: UserRole; // <--- Added this to carry the DB data
   activationToken?: string;
 }
 

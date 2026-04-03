@@ -170,6 +170,7 @@ export class AuthService {
         'Invalid roll number/email or password'
       );
     }
+    console.log("DATABASE HANDED ME THIS ROLE:", account.role);
 
     if (account.status === 'pending') {
       throw new AppError(
@@ -180,17 +181,32 @@ export class AuthService {
     }
 
     // AWAIT the device session check
-    const hasActiveDevice = await this.store.hasActiveDeviceSession(account.studentId);
-    if (hasActiveDevice) {
-      throw new AppError(
-        'DEVICE_ALREADY_BOUND',
-        409,
-        'Another device is already bound to this account'
-      );
+    // const hasActiveDevice = await this.store.hasActiveDeviceSession(account.studentId);
+    // if (hasActiveDevice) {
+    //   throw new AppError(
+    //     'DEVICE_ALREADY_BOUND',
+    //     409,
+    //     'Another device is already bound to this account'
+    //   );
+    // }
+    const activeSession = await this.store.getActiveDeviceSession(account.studentId);
+    
+    if (activeSession) {
+      // If it's the SAME device logging in again, just clear the old session
+      if (activeSession.deviceId === deviceId) {
+        await this.store.invalidateSession(activeSession.accessToken);
+      } else {
+        // If it's a DIFFERENT device, trigger the strict block
+        throw new AppError(
+          'DEVICE_ALREADY_BOUND',
+          409,
+          'Another device is already bound to this account. Please use the device switch flow.'
+        );
+      }
     }
 
     // JWT payload uses standard 'sub' for the account ID
-    const payload = { sub: account.studentId, deviceId, role: 'student' };
+    const payload = { sub: account.studentId, deviceId, role: account.role };
     const accessToken = this.signJwt(payload, '15m');
     const refreshToken = this.signJwt({ ...payload, isRefresh: true }, '7d');
 
@@ -206,7 +222,7 @@ export class AuthService {
         id: account.studentId,
         rollNumber: account.rollNumber,
         email: account.email,
-        role: 'student',
+        role: account.role,
       },
     };
   }
@@ -251,7 +267,7 @@ export class AuthService {
       );
     }
 
-    const payload = { sub: studentId, deviceId: newDeviceId, role: 'student' };
+    const payload = { sub: studentId, deviceId: newDeviceId, role: account.role };
     const accessToken = this.signJwt(payload, '15m');
     const refreshToken = this.signJwt({ ...payload, isRefresh: true }, '7d');
 
@@ -267,7 +283,7 @@ export class AuthService {
         id: account.studentId,
         rollNumber: account.rollNumber,
         email: account.email,
-        role: 'student',
+        role: account.role,
       },
     };
   }

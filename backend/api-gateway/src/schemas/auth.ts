@@ -39,7 +39,8 @@ export const AuthResponseSchema = z.object({
     id: z.string(),
     rollNumber: z.string(),
     email: z.string().email(),
-    role: z.literal('student'),
+    // Replace z.literal('student') with this:
+    role: z.string(), 
   }),
 });
 

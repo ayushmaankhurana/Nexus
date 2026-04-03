@@ -1,41 +1,39 @@
-import { PrismaClient, UserRole, AccountStatus } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import pg from 'pg';
-import { StudentAccount, Session, AppError } from '@nexus/core';
+import { PrismaClient, Account, Session as PrismaSession } from '@prisma/client';
+import bcrypt from 'bcrypt';
+import { StudentAccount, Session } from '@nexus/core';
+import { getPrismaClient } from '../lib/prisma'; // <-- Import the singleton
 
 export class PrismaAuthStore {
   private prisma: PrismaClient;
 
   constructor() {
-    const dbUrl = process.env.DATABASE_URL;
-  
-  if (!dbUrl) {
-    throw new Error("DATABASE_URL is not defined in environment variables");
+    // 1. THE FIX: We just ask for the shared client. 
+    // No more pg.Pool or PrismaPg in this file!
+    this.prisma = getPrismaClient();
   }
 
-  const pool = new pg.Pool({ connectionString: dbUrl });
-  const adapter = new PrismaPg(pool);
-  this.prisma = new PrismaClient({ adapter });
-}
-  private mapSession(dbSession: any): Session {
+  // 2. THE FIX: Replaced 'any' with 'PrismaSession'
+  private mapSession(dbSession: PrismaSession): Session {
     return {
-        id: dbSession.id,
-        studentId: dbSession.accountId, // <--- The "Bridge": Map accountId to studentId
-        deviceId: dbSession.deviceId,
-        accessToken: dbSession.accessToken,
-        refreshToken: dbSession.refreshToken,
-        createdAt: dbSession.createdAt,
-        expiresAt: dbSession.expiresAt,
+      id: dbSession.id,
+      studentId: dbSession.accountId, // <--- The "Bridge": Map accountId to studentId
+      deviceId: dbSession.deviceId,
+      accessToken: dbSession.accessToken,
+      refreshToken: dbSession.refreshToken,
+      createdAt: dbSession.createdAt,
+      expiresAt: dbSession.expiresAt,
     };
-}
-  // Helper to map DB account to our Core StudentAccount type
-  private mapAccount(dbAccount: any): StudentAccount {
+  }
+
+  // 3. THE FIX: Replaced 'any' with 'Account'
+  private mapAccount(dbAccount: Account): StudentAccount {
     return {
       studentId: dbAccount.id,
       rollNumber: dbAccount.rollNumber,
       email: dbAccount.email,
       password: dbAccount.password,
       status: dbAccount.status.toLowerCase() as any,
+      role: dbAccount.role as any, // Mapped from DB role enum
       activationToken: dbAccount.activationToken || undefined,
     };
   }
@@ -59,21 +57,21 @@ export class PrismaAuthStore {
     deviceId: string,
     accessToken: string,
     refreshToken: string
-    ): Promise<Session> {
+  ): Promise<Session> {
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     const session = await this.prisma.session.create({
-        data: {
+      data: {
         accountId: studentId,
         deviceId,
         accessToken,
         refreshToken,
         expiresAt,
-        },
+      },
     });
 
-    return this.mapSession(session); // Use the mapper here
-    }
+    return this.mapSession(session);
+  }
 
   async hasActiveDeviceSession(studentId: string): Promise<boolean> {
     const session = await this.prisma.session.findFirst({
@@ -83,12 +81,12 @@ export class PrismaAuthStore {
   }
 
   async getActiveDeviceSession(studentId: string): Promise<Session | null> {
-  const session = await this.prisma.session.findFirst({
-    where: { accountId: studentId },
-  });
-  
-  return session ? this.mapSession(session) : null; // Use the mapper here
-}
+    const session = await this.prisma.session.findFirst({
+      where: { accountId: studentId },
+    });
+    
+    return session ? this.mapSession(session) : null;
+  }
 
   async invalidateSession(accessToken: string): Promise<void> {
     await this.prisma.session.deleteMany({
@@ -96,25 +94,6 @@ export class PrismaAuthStore {
     });
   }
 
-  // Add the remaining methods (activateAccountByToken, validatePassword, etc.) 
-  // following the same async pattern...
-
-//   async activateAccountByToken(token: string): Promise<void> {
-//     const account = await this.prisma.account.findFirst({
-//       where: { activationToken: token },
-//     });
-//   }
-
-//   async validatePassword(studentId: string, password: string): Promise<boolean> {
-//     const account = await this.prisma.account.findUnique({
-//       where: { id: studentId },
-//     });
-//     if (!account) return false;
-//     // In a real implementation, you would compare the password here
-//     return true;
-//   }
-
-  // 1. Find account by token (needed for the first step of activation)
   async getAccountByActivationToken(token: string): Promise<StudentAccount | null> {
     const account = await this.prisma.account.findFirst({
       where: { activationToken: token },
@@ -122,29 +101,26 @@ export class PrismaAuthStore {
     return account ? this.mapAccount(account) : null;
   }
 
-  // 2. The full activation logic: status change + password set + token clear
   async activateAccountByToken(token: string, newPassword: string): Promise<StudentAccount> {
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
     const updatedAccount = await this.prisma.account.update({
       where: { activationToken: token },
       data: {
         status: 'ACTIVE',
-        password: newPassword, // Note: We should add bcrypt hashing here in the next sprint
-        activationToken: null, // Clear the token so it can't be used again
+        password: hashedPassword,
+        activationToken: null,
       },
     });
 
     return this.mapAccount(updatedAccount);
   }
 
-  // 3. Password validation
-  // We take the whole account object to match your AuthService's current logic
   async validatePassword(account: StudentAccount, password: string): Promise<boolean> {
-    // Currently comparing plaintext as per the dev state
-    // Once we add hashing, this will become: return await bcrypt.compare(password, account.password);
-    return account.password === password;
+    return await bcrypt.compare(password, account.password);
   }
 
-  // 4. Atomic Device Switching
   async switchDevice(
     studentId: string, 
     oldDeviceId: string, 
@@ -154,16 +130,13 @@ export class PrismaAuthStore {
   ): Promise<void> {
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    // We use a transaction to ensure we don't end up with orphaned sessions
     await this.prisma.$transaction([
-      // Remove the old binding
       this.prisma.session.deleteMany({
         where: {
           accountId: studentId,
           deviceId: oldDeviceId,
         },
       }),
-      // Create the new binding
       this.prisma.session.create({
         data: {
           accountId: studentId,
