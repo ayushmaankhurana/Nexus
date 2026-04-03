@@ -1,6 +1,6 @@
 import { createApp } from './app';
 import { loadConfig, logger } from '@nexus/core';
-
+import 'dotenv/config';
 async function main() {
   const config = loadConfig();
   const app = await createApp();

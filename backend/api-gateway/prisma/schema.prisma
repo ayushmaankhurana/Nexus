@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // url is removed from here!
+}
+
+// ... keep your enums and models (Account, Session) exactly as they were ...
+// 1. Enums for strict type safety across the platform
+enum UserRole {
+  STUDENT
+  ADMIN
+  SECURITY
+}
+
+enum AccountStatus {
+  PENDING
+  ACTIVE
+}
+
+// 2. The Core Identity Model
+model Account {
+  id              String        @id @default(uuid())
+  rollNumber      String        @unique
+  email           String        @unique
+  password        String        // Note: We will hash this in the next step
+  role            UserRole      @default(STUDENT)
+  status          AccountStatus @default(PENDING)
+  activationToken String?       @unique
+  
+  // Relations
+  sessions        Session[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("accounts") // Renames the table in Postgres to lowercase plural
+}
+
+// 3. The Session & Device Binding Model
+model Session {
+  id           String   @id @default(uuid())
+  accountId    String
+  deviceId     String
+  accessToken  String   @unique
+  refreshToken String   @unique
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  // Relations
+  account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, deviceId]) // Enforces the "One device per account" logic at DB level
+  @@map("sessions")
+}
