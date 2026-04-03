@@ -1,0 +1,150 @@
+# =========================
+# Dependencies
+# =========================
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+.yarn-cache/
+.yarnrc.yml
+
+# =========================
+# Build output
+# =========================
+dist/
+build/
+out/
+coverage/
+.tmp/
+temp/
+.cache/
+.parcel-cache/
+.turbo/
+.esbuild/
+*.tsbuildinfo
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# =========================
+# Environment files
+# =========================
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# =========================
+# Runtime / pid files
+# =========================
+pids/
+*.pid
+*.pid.lock
+*.seed
+
+# =========================
+# Testing / reports
+# =========================
+.nyc_output/
+junit.xml
+test-results/
+playwright-report/
+coverage-final.json
+
+# =========================
+# TypeScript / tooling
+# =========================
+*.tgz
+*.swp
+*.swo
+*.orig
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+.idea/
+*.iml
+*.sublime-workspace
+*.sublime-project
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# =========================
+# Mac / Linux misc
+# =========================
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# =========================
+# Local databases / dumps
+# =========================
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+
+# =========================
+# Package manager lockfiles
+# Keep exactly the one you use
+# =========================
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# =========================
+# Monorepo app-specific outputs
+# =========================
+backend/**/dist/
+frontend/**/dist/
+mobile/**/build/
+mobile/**/android/app/build/
+mobile/**/android/.gradle/
+mobile/**/ios/build/
+mobile/**/ios/Pods/
+
+# =========================
+# React Native / mobile
+# Only useful if/when present
+# =========================
+.expo/
+.expo-shared/
+*.keystore
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+
+# =========================
+# Generated media / archives
+# =========================
+*.zip
+*.tar
+*.gz
+*.rar
+
+# =========================
+# Optional local-only request files
+# Uncomment if you never want these committed
+# =========================
+# *.http
+# *.rest

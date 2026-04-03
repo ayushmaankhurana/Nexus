@@ -1,0 +1,211 @@
+@baseUrl = http://localhost:3000
+@pendingRoll = CS21001
+@pendingEmail = cs21001@campus.edu
+@pendingPassword = pass123
+@newActivatedPassword = newpass123
+@pendingActivationToken = activation_token_001
+
+@activeRoll = CS21002
+@activeEmail = cs21002@campus.edu
+@activePassword = pass456
+
+@deviceA = ios-iphone-15
+@deviceB = android-pixel-8
+
+### Health
+GET {{baseUrl}}/health
+Accept: application/json
+
+### Login with active seeded account on device A
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{activeRoll}}",
+  "password": "{{activePassword}}",
+  "deviceId": "{{deviceA}}"
+}
+
+### Login same active account again on device B - should fail with DEVICE_ALREADY_BOUND
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{activeRoll}}",
+  "password": "{{activePassword}}",
+  "deviceId": "{{deviceB}}"
+}
+
+### Logout active account from device A
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+Accept: application/json
+
+{
+  "studentId": "std_002",
+  "deviceId": "{{deviceA}}"
+}
+
+### Login active account again after logout on device B - should now succeed
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{activeEmail}}",
+  "password": "{{activePassword}}",
+  "deviceId": "{{deviceB}}"
+}
+
+### Device switch active account from device B to device A
+POST {{baseUrl}}/auth/device/switch
+Content-Type: application/json
+Accept: application/json
+
+{
+  "studentId": "std_002",
+  "oldDeviceId": "{{deviceB}}",
+  "newDeviceId": "{{deviceA}}"
+}
+
+### Logout active account from device A after switch
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+Accept: application/json
+
+{
+  "studentId": "std_002",
+  "deviceId": "{{deviceA}}"
+}
+
+### Login pending account before activation - should fail with ACCOUNT_NOT_ACTIVATED
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{pendingRoll}}",
+  "password": "{{pendingPassword}}",
+  "deviceId": "{{deviceA}}"
+}
+
+### Activate pending account
+POST {{baseUrl}}/auth/activate
+Content-Type: application/json
+Accept: application/json
+
+{
+  "activationToken": "{{pendingActivationToken}}",
+  "password": "{{newActivatedPassword}}"
+}
+
+### Activate pending account again - should fail with ALREADY_ACTIVATED or INVALID_ACTIVATION_TOKEN
+POST {{baseUrl}}/auth/activate
+Content-Type: application/json
+Accept: application/json
+
+{
+  "activationToken": "{{pendingActivationToken}}",
+  "password": "{{newActivatedPassword}}"
+}
+
+### Login activated account with new password on device A
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{pendingEmail}}",
+  "password": "{{newActivatedPassword}}",
+  "deviceId": "{{deviceA}}"
+}
+
+### Login activated account with wrong password - should fail with INVALID_CREDENTIALS
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{pendingEmail}}",
+  "password": "wrong-password",
+  "deviceId": "{{deviceB}}"
+}
+
+### Device switch with wrong old device - should fail with DEVICE_SWITCH_MISMATCH
+POST {{baseUrl}}/auth/device/switch
+Content-Type: application/json
+Accept: application/json
+
+{
+  "studentId": "std_001",
+  "oldDeviceId": "non-existent-device",
+  "newDeviceId": "{{deviceB}}"
+}
+
+### Logout activated account from device A
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+Accept: application/json
+
+{
+  "studentId": "std_001",
+  "deviceId": "{{deviceA}}"
+}
+
+### Students me placeholder
+GET {{baseUrl}}/students/me
+Accept: application/json
+
+### Attendance history placeholder
+GET {{baseUrl}}/students/student::S12345/attendance
+Accept: application/json
+
+### Mark attendance placeholder
+POST {{baseUrl}}/students/student::S12345/attendance
+Content-Type: application/json
+Accept: application/json
+
+{
+  "mode": "manual-check",
+  "source": "test-http"
+}
+
+### Access check placeholder
+POST {{baseUrl}}/access/check
+Content-Type: application/json
+Accept: application/json
+
+{
+  "studentId": "student::S12345",
+  "checkpointId": "gate-01",
+  "mode": "entry"
+}
+
+### Access history placeholder
+GET {{baseUrl}}/access/student::S12345
+Accept: application/json
+
+### Presence summary placeholder
+GET {{baseUrl}}/presence/student::S12345
+Accept: application/json
+
+### Presence trail placeholder
+GET {{baseUrl}}/presence/student::S12345/trail
+Accept: application/json
+
+### Incidents list placeholder
+GET {{baseUrl}}/incidents
+Accept: application/json
+
+### Create incident placeholder
+POST {{baseUrl}}/incidents
+Content-Type: application/json
+Accept: application/json
+
+{
+  "type": "suspicious-behavior",
+  "studentId": "student::S12345",
+  "message": "Manual test incident from REST Client"
+}

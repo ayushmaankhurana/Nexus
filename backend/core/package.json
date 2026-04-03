@@ -1,0 +1,26 @@
+{
+  "name": "@nexus/core",
+  "version": "1.0.0",
+  "description": "Shared core utilities, config, logging, and types for NEXUS",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./config": "./dist/config/index.js",
+    "./logger": "./dist/logger/index.js",
+    "./types": "./dist/types/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "keywords": ["nexus", "core"],
+  "dependencies": {
+    "pino": "^8.0.0",
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

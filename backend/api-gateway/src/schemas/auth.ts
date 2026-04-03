@@ -1,0 +1,55 @@
+import { z } from 'zod';
+
+export const ActivateRequestSchema = z.object({
+  activationToken: z.string().min(1, 'Activation token is required'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
+export type ActivateRequest = z.infer<typeof ActivateRequestSchema>;
+
+export const LoginRequestSchema = z.object({
+  identifier: z.string().min(1, 'Roll number or email is required'),
+  password: z.string().min(1, 'Password is required'),
+  deviceId: z.string().min(1, 'Device ID is required'),
+});
+
+export type LoginRequest = z.infer<typeof LoginRequestSchema>;
+
+export const LogoutRequestSchema = z.object({
+  studentId: z.string().min(1, 'Student ID is required'),
+  deviceId: z.string().min(1, 'Device ID is required'),
+});
+
+export type LogoutRequest = z.infer<typeof LogoutRequestSchema>;
+
+export const DeviceSwitchRequestSchema = z.object({
+  studentId: z.string().min(1, 'Student ID is required'),
+  oldDeviceId: z.string().min(1, 'Old device ID is required'),
+  newDeviceId: z.string().min(1, 'New device ID is required'),
+});
+
+export type DeviceSwitchRequest = z.infer<typeof DeviceSwitchRequestSchema>;
+
+export const AuthResponseSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+  expiresIn: z.number(),
+  tokenType: z.literal('Bearer'),
+  user: z.object({
+    id: z.string(),
+    rollNumber: z.string(),
+    email: z.string().email(),
+    role: z.literal('student'),
+  }),
+});
+
+export type AuthResponse = z.infer<typeof AuthResponseSchema>;
+
+export const ErrorResponseSchema = z.object({
+  error: z.object({
+    code: z.string(),
+    message: z.string(),
+  }),
+});
+
+export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
