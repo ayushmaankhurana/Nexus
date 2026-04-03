@@ -147,4 +147,5 @@ mobile/**/ios/Pods/
 # Uncomment if you never want these committed
 # =========================
 # *.http
-# *.rest
+# *.restdist/
+**/dist/
