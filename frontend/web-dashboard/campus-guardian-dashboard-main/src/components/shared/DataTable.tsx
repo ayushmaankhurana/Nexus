@@ -27,7 +27,7 @@ interface DataTableProps<T> {
   className?: string;
 }
 
-export function DataTable<T extends Record<string, any>>({
+export function DataTable<T extends Record<string, unknown>>({
   columns, data, searchable, searchKeys = [], onRowClick, isLoading, emptyTitle, emptyDescription, pageSize = 10, className,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");

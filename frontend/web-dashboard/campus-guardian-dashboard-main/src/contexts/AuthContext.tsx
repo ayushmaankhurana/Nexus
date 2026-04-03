@@ -41,7 +41,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (identifier: string, password: string) => {
     const res = await authApi.login(identifier, password);
-    setState({ user: res.user, session: res.session, isAuthenticated: true, isLoading: false });
+    // session will be undefined from backend, but that's OK - we already fetch user
+    setState({ user: res.user, session: res.session || null, isAuthenticated: true, isLoading: false });
   }, []);
 
   const logout = useCallback(async () => {
@@ -51,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const activate = useCallback(async (token: string, password: string) => {
     const res = await authApi.activateAccount(token, password);
-    setState({ user: res.user, session: res.session, isAuthenticated: true, isLoading: false });
+    setState({ user: res.user, session: res.session || null, isAuthenticated: true, isLoading: false });
   }, []);
 
   const switchDevice = useCallback(async (deviceId: string) => {

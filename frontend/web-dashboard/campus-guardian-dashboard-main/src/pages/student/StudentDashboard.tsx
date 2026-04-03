@@ -4,6 +4,7 @@ import { SectionCard, PageHeader } from "@/components/shared/PageComponents";
 import { ActivityFeed } from "@/components/shared/ActivityFeed";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { CalendarCheck, DoorOpen, AlertTriangle, Smartphone, Clock, LifeBuoy, LogOut } from "lucide-react";
+import { getDisplayName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { mockAttendanceSummary, mockAccessEvents, mockAlerts, mockSession, mockActivityEvents } from "@/mocks/data";
@@ -17,7 +18,7 @@ export default function StudentDashboard() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={`Welcome back, ${user?.name?.split(" ")[0] || "Student"}`} description="Here's an overview of your campus activity and status." />
+      <PageHeader title={`Welcome back, ${getDisplayName(user).split(" ")[0] || "Student"}`} description="Here's an overview of your campus activity and status." />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Attendance Rate" value={`${mockAttendanceSummary.percentage}%`} subtitle={`${mockAttendanceSummary.present} of ${mockAttendanceSummary.totalDays} days`} icon={CalendarCheck} trend={{ value: 2.3, label: "vs last month" }} />

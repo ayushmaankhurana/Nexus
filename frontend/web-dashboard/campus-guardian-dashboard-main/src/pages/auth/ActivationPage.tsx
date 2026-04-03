@@ -24,8 +24,9 @@ export default function ActivationPage() {
     try {
       await activate(token, password);
       navigate("/dashboard", { replace: true });
-    } catch (err: any) {
-      setError(err?.message || "Activation failed.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Activation failed.";
+      setError(message);
     } finally {
       setLoading(false);
     }

@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { mockSession } from "@/mocks/data";
 import { LogOut, Smartphone, Shield, Palette } from "lucide-react";
+import { getDisplayName, getUserInitials } from "@/lib/utils";
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
@@ -18,10 +19,10 @@ export default function SettingsPage() {
           <div className="space-y-3 text-sm">
             <div className="flex items-center gap-4">
               <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center text-lg font-semibold">
-                {user?.name.split(" ").map(n => n[0]).join("")}
+                {getUserInitials(user)}
               </div>
               <div>
-                <p className="font-medium">{user?.name}</p>
+                <p className="font-medium">{getDisplayName(user)}</p>
                 <p className="text-muted-foreground">{user?.email}</p>
               </div>
             </div>

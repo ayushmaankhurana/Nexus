@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { getDisplayName, getUserInitials } from "@/lib/utils";
 
 const studentNav = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -114,10 +115,10 @@ export function AppSidebar() {
         {!collapsed && user && (
           <div className="flex items-center gap-2.5 mb-2 px-1">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-medium">
-              {user.name.split(" ").map(n => n[0]).join("")}
+              {getUserInitials(user).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user.name}</p>
+              <p className="text-sm font-medium truncate">{getDisplayName(user)}</p>
               <div className="flex items-center gap-1.5">
                 <StatusBadge variant={user.role === "admin" ? "info" : "default"} className="text-[10px] px-1.5 py-0">
                   {user.role}

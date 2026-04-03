@@ -26,9 +26,13 @@ export interface Session {
 }
 
 export interface AuthResponse {
-  token: string;
+  token?: string; // From mock responses
+  accessToken?: string; // From real backend responses
+  refreshToken?: string;
+  expiresIn?: number;
+  tokenType?: string;
   user: User;
-  session: Session;
+  session?: Session; // Backend doesn't return session
 }
 
 export interface AttendanceRecord {

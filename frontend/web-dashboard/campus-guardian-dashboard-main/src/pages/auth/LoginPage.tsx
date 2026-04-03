@@ -26,8 +26,9 @@ export default function LoginPage() {
     try {
       await login(identifier, password);
       navigate("/dashboard", { replace: true });
-    } catch (err: any) {
-      setError(err?.message || "Invalid credentials. Please try again.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Invalid credentials. Please try again.";
+      setError(message);
     } finally {
       setLoading(false);
     }

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useLocation } from "react-router-dom";
+import { getDisplayName, getUserInitials } from "@/lib/utils";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -49,10 +50,10 @@ export function AppHeader() {
         </Button>
         <div className="hidden sm:flex items-center gap-2 ml-2 pl-2 border-l">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-medium">
-            {user?.name.split(" ").map(n => n[0]).join("") || "U"}
+            {getUserInitials(user)}
           </div>
           <div className="hidden lg:block">
-            <p className="text-sm font-medium leading-none">{user?.name}</p>
+            <p className="text-sm font-medium leading-none">{getDisplayName(user)}</p>
             <StatusBadge variant={user?.role === "admin" ? "info" : "default"} className="text-[10px] px-1.5 py-0 mt-0.5">
               {user?.role}
             </StatusBadge>

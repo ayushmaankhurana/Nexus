@@ -1,7 +1,22 @@
 import { ENV } from "@/config/env";
 import type { ApiError } from "@/types";
 
+const DEVICE_ID_KEY = "nexus_device_id";
+
 let authToken: string | null = localStorage.getItem("nexus_token");
+
+export function getOrCreateDeviceId(): string {
+  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+  if (!deviceId) {
+    deviceId = `device_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`;
+    localStorage.setItem(DEVICE_ID_KEY, deviceId);
+  }
+  return deviceId;
+}
+
+export function getDeviceId(): string | null {
+  return localStorage.getItem(DEVICE_ID_KEY);
+}
 
 export function setAuthToken(token: string | null) {
   authToken = token;

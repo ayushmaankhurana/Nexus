@@ -4,6 +4,7 @@ import { SectionCard, PageHeader } from "@/components/shared/PageComponents";
 import { ActivityFeed } from "@/components/shared/ActivityFeed";
 import { StatusBadge, getStatusVariant } from "@/components/shared/StatusBadge";
 import { Users, AlertTriangle, DoorOpen, CalendarCheck, ShieldAlert, Activity } from "lucide-react";
+import { getDisplayName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { mockStudents, mockAlerts, mockIncidents, mockAccessEvents, mockAttendanceRecords, mockActivityEvents } from "@/mocks/data";
@@ -19,7 +20,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Operations Dashboard" description={`Welcome, ${user?.name?.split(" ")[0]}. Here's today's campus security overview.`} />
+      <PageHeader title="Operations Dashboard" description={`Welcome, ${getDisplayName(user).split(" ")[0]}. Here's today's campus security overview.`} />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard title="Active Students" value={activeStudents} icon={Users} trend={{ value: 3, label: "this week" }} />

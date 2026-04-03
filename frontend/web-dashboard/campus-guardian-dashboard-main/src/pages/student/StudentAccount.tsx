@@ -4,6 +4,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { mockSession } from "@/mocks/data";
 import { User, Smartphone, Monitor, LogOut, RefreshCw } from "lucide-react";
+import { getDisplayName, getUserInitials } from "@/lib/utils";
 
 export default function StudentAccount() {
   const { user, logout, switchDevice } = useAuth();
@@ -16,17 +17,17 @@ export default function StudentAccount() {
           <div className="space-y-4">
             <div className="flex items-center gap-4">
               <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center text-xl font-semibold">
-                {user?.name.split(" ").map(n => n[0]).join("")}
+                {getUserInitials(user)}
               </div>
               <div>
-                <h3 className="font-medium">{user?.name}</h3>
+                <h3 className="font-medium">{getDisplayName(user)}</h3>
                 <p className="text-sm text-muted-foreground">{user?.email}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div><span className="text-muted-foreground block text-xs mb-0.5">Student ID</span>{user?.studentId || "—"}</div>
               <div><span className="text-muted-foreground block text-xs mb-0.5">Department</span>{user?.department || "—"}</div>
-              <div><span className="text-muted-foreground block text-xs mb-0.5">Status</span><StatusBadge variant={user?.status as any}>{user?.status}</StatusBadge></div>
+              <div><span className="text-muted-foreground block text-xs mb-0.5">Status</span><StatusBadge variant={user?.status ? (user.status as "active" | "suspended" | "inactive" | "pending") : "default"}>{user?.status}</StatusBadge></div>
               <div><span className="text-muted-foreground block text-xs mb-0.5">Role</span><StatusBadge variant="default">{user?.role}</StatusBadge></div>
             </div>
           </div>
