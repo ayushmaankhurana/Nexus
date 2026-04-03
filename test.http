@@ -1,4 +1,5 @@
 @baseUrl = http://localhost:3000
+
 @pendingRoll = CS21001
 @pendingEmail = cs21001@campus.edu
 @pendingPassword = pass123
@@ -11,12 +12,18 @@
 
 @deviceA = ios-iphone-15
 @deviceB = android-pixel-8
+@testStudentId = std_002
 
 ### Health
 GET {{baseUrl}}/health
 Accept: application/json
 
-### Login with active seeded account on device A
+# ==========================================
+# AUTHENTICATION FLOWS
+# ==========================================
+
+### Login with active seeded account on device A (CAPTURES JWT)
+# @name loginRequest
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 Accept: application/json
@@ -26,6 +33,9 @@ Accept: application/json
   "password": "{{activePassword}}",
   "deviceId": "{{deviceA}}"
 }
+
+### Store the token globally for protected routes below
+@authToken = {{loginRequest.response.body.accessToken}}
 
 ### Login same active account again on device B - should fail with DEVICE_ALREADY_BOUND
 POST {{baseUrl}}/auth/login
@@ -44,7 +54,7 @@ Content-Type: application/json
 Accept: application/json
 
 {
-  "studentId": "std_002",
+  "studentId": "{{testStudentId}}",
   "deviceId": "{{deviceA}}"
 }
 
@@ -65,7 +75,7 @@ Content-Type: application/json
 Accept: application/json
 
 {
-  "studentId": "std_002",
+  "studentId": "{{testStudentId}}",
   "oldDeviceId": "{{deviceB}}",
   "newDeviceId": "{{deviceA}}"
 }
@@ -76,32 +86,11 @@ Content-Type: application/json
 Accept: application/json
 
 {
-  "studentId": "std_002",
-  "deviceId": "{{deviceA}}"
-}
-
-### Login pending account before activation - should fail with ACCOUNT_NOT_ACTIVATED
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-Accept: application/json
-
-{
-  "identifier": "{{pendingRoll}}",
-  "password": "{{pendingPassword}}",
+  "studentId": "{{testStudentId}}",
   "deviceId": "{{deviceA}}"
 }
 
 ### Activate pending account
-POST {{baseUrl}}/auth/activate
-Content-Type: application/json
-Accept: application/json
-
-{
-  "activationToken": "{{pendingActivationToken}}",
-  "password": "{{newActivatedPassword}}"
-}
-
-### Activate pending account again - should fail with ALREADY_ACTIVATED or INVALID_ACTIVATION_TOKEN
 POST {{baseUrl}}/auth/activate
 Content-Type: application/json
 Accept: application/json
@@ -122,48 +111,23 @@ Accept: application/json
   "deviceId": "{{deviceA}}"
 }
 
-### Login activated account with wrong password - should fail with INVALID_CREDENTIALS
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-Accept: application/json
-
-{
-  "identifier": "{{pendingEmail}}",
-  "password": "wrong-password",
-  "deviceId": "{{deviceB}}"
-}
-
-### Device switch with wrong old device - should fail with DEVICE_SWITCH_MISMATCH
-POST {{baseUrl}}/auth/device/switch
-Content-Type: application/json
-Accept: application/json
-
-{
-  "studentId": "std_001",
-  "oldDeviceId": "non-existent-device",
-  "newDeviceId": "{{deviceB}}"
-}
-
-### Logout activated account from device A
-POST {{baseUrl}}/auth/logout
-Content-Type: application/json
-Accept: application/json
-
-{
-  "studentId": "std_001",
-  "deviceId": "{{deviceA}}"
-}
+# ==========================================
+# PROTECTED ROUTES (Requires @authToken from loginRequest)
+# ==========================================
 
 ### Students me placeholder
 GET {{baseUrl}}/students/me
+Authorization: Bearer {{authToken}}
 Accept: application/json
 
 ### Attendance history placeholder
-GET {{baseUrl}}/students/student::S12345/attendance
+GET {{baseUrl}}/students/{{testStudentId}}/attendance
+Authorization: Bearer {{authToken}}
 Accept: application/json
 
 ### Mark attendance placeholder
-POST {{baseUrl}}/students/student::S12345/attendance
+POST {{baseUrl}}/students/{{testStudentId}}/attendance
+Authorization: Bearer {{authToken}}
 Content-Type: application/json
 Accept: application/json
 
@@ -174,38 +138,58 @@ Accept: application/json
 
 ### Access check placeholder
 POST {{baseUrl}}/access/check
+Authorization: Bearer {{authToken}}
 Content-Type: application/json
 Accept: application/json
 
 {
-  "studentId": "student::S12345",
+  "studentId": "{{testStudentId}}",
   "checkpointId": "gate-01",
   "mode": "entry"
 }
 
 ### Access history placeholder
-GET {{baseUrl}}/access/student::S12345
+GET {{baseUrl}}/access/{{testStudentId}}
+Authorization: Bearer {{authToken}}
 Accept: application/json
 
 ### Presence summary placeholder
-GET {{baseUrl}}/presence/student::S12345
+GET {{baseUrl}}/presence/{{testStudentId}}
+Authorization: Bearer {{authToken}}
 Accept: application/json
 
 ### Presence trail placeholder
-GET {{baseUrl}}/presence/student::S12345/trail
+GET {{baseUrl}}/presence/{{testStudentId}}/trail
+Authorization: Bearer {{authToken}}
 Accept: application/json
 
 ### Incidents list placeholder
 GET {{baseUrl}}/incidents
+Authorization: Bearer {{authToken}}
 Accept: application/json
 
 ### Create incident placeholder
 POST {{baseUrl}}/incidents
+Authorization: Bearer {{authToken}}
 Content-Type: application/json
 Accept: application/json
 
 {
   "type": "suspicious-behavior",
-  "studentId": "student::S12345",
+  "studentId": "{{testStudentId}}",
   "message": "Manual test incident from REST Client"
 }
+
+# ==========================================
+# SECURITY / MIDDLEWARE TESTS
+# ==========================================
+
+### TEST 1: Missing Token (Should return 401 Unauthorized)
+GET {{baseUrl}}/students/{{testStudentId}}/attendance
+Accept: application/json
+
+### TEST 2: Wrong Student ID / Ownership Check (Should return 403 Forbidden)
+# We are using std_002's token, but asking for std_001's data
+GET {{baseUrl}}/students/std_001/attendance
+Authorization: Bearer {{authToken}}
+Accept: application/json

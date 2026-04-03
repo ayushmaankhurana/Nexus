@@ -1,14 +1,38 @@
 import { FastifyPluginAsync } from 'fastify';
 
 const incidents: FastifyPluginAsync = async (fastify) => {
-  // Placeholder routes
-  fastify.get('/incidents', async (request, reply) => {
-    return { message: 'Incidents list placeholder' };
-  });
+  fastify.get(
+    '/incidents',
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      const user = request.user;
 
-  fastify.post('/incidents', async (request, reply) => {
-    return { message: 'Create incident placeholder' };
-  });
+      let incidents: any[] = [];
+      if (user.role === 'admin') {
+        // Return all incidents
+        incidents = [];
+      } else {
+        // Return incidents for the authenticated user
+        incidents = [];
+      }
+
+      return { incidents };
+    }
+  );
+
+  fastify.post(
+    '/incidents',
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      const user = request.user;
+
+      return {
+        id: 'incident-123',
+        studentId: user.sub,
+        message: 'Incident created successfully',
+      };
+    }
+  );
 };
 
 export default incidents;

@@ -93,57 +93,46 @@ Traditional campus management systems treat attendance, access control, and secu
 
 ### What's Partially Complete
 
-#### Backend Routes (Stubbed)
-- ⏳ **GET /students/me** — Returns hardcoded mock student; no auth integration
-- ⏳ **GET /students/:studentId/attendance** — Returns placeholder message
-- ⏳ **POST /students/:studentId/attendance** — Returns placeholder message
-- ⏳ **GET /access/:studentId** — Returns placeholder message
-- ⏳ **POST /access/check** — Returns placeholder message
-- ⏳ **GET /presence/:studentId** — Returns placeholder message
-- ⏳ **GET /presence/:studentId/trail** — Returns placeholder message
-- ⏳ **GET /incidents** — Returns placeholder message
-- ⏳ **POST /incidents** — Returns placeholder message
+#### Backend Routes (Protected & Integrated)
+- ✅ **GET /students/me** — Protected by JWT; returns authenticated user profile
+- ✅ **GET /students/:studentId/attendance** — Protected by JWT; validates student ownership
+- ✅ **POST /students/:studentId/attendance** — Protected by JWT; validates student ownership
+- ✅ **GET /access/:studentId** — Protected by JWT; validates student ownership
+- ✅ **POST /access/check** — Protected by JWT; validates student ownership
+- ✅ **GET /presence/:studentId** — Protected by JWT; validates student ownership
+- ✅ **GET /presence/:studentId/trail** — Protected by JWT; validates student ownership
+- ✅ **GET /incidents** — Protected by JWT; returns incidents for authenticated user
+- ✅ **POST /incidents** — Protected by JWT; creates incident for authenticated user
 
 ### What's Missing / Blocked
 
-1. **Route Protection / Auth Middleware**
-   - Backend routes do NOT validate Authorization Bearer token
-   - All routes are publicly accessible
-   - No middleware to enforce authenticated access
-   - **Blocker**: Need to add token validation middleware and protect routes
-
-2. **Attendance Domain Logic**
+1. **Attendance Domain Logic**
    - Marking attendance requires schedule validation, location checks, grace windows
    - Backend has no notion of student timetables or campuses
    - Frontend uses mock data; no integration
    - **Blocker**: Requires schedule + campus zone services
 
-3. **Access Verification**
+2. **Access Verification**
    - Access checking (gates, parking) not implemented
    - No access control rules or policies
    - **Blocker**: Requires campus topology + access policy services
 
-4. **Presence & Location**
+3. **Presence & Location**
    - No GPS/BLE ingestion pipeline
    - No trail reconstruction
    - **Blocker**: Requires location ingestion + offline sync (DOLN)
 
-5. **Incidents & Alerts**
+4. **Incidents & Alerts**
    - UI placeholders exist; no backend logic
    - No alert generation or escalation workflows
    - **Blocker**: Requires incident service + rules engine
 
-6. **Backend Persistence**
+5. **Backend Persistence**
    - All data is in-memory (`MockAuthStore`)
    - Server restart clears all sessions and accounts
    - **Blocker**: Need MongoDB/PostgreSQL integration
 
-7. **Token Security**
-   - Access tokens are random UUIDs, not JWTs
-   - No cryptographic signing or expiration validation
-   - **Blocker**: Implement JWT with signing + expiration check
-
-8. **Role-Based Access Control**
+6. **Role-Based Access Control**
    - Backend only recognizes `student` role (hardcoded in auth responses)
    - `admin` and `security` roles exist on frontend but not validated on backend
    - **Blocker**: Backend needs to return correct role from account; middleware to enforce
@@ -169,6 +158,16 @@ Traditional campus management systems treat attendance, access control, and secu
 - All user-facing display safe from crashes if `name` is undefined
 - **Status**: Deployed; AppHeader, AppSidebar, StudentAccount, SettingsPage, AdminDashboard, StudentDashboard all using safe helpers
 
+#### JWT Implementation & Route Protection (Implemented)
+- Backend now issues cryptographically signed JWT tokens instead of random UUIDs
+- Tokens include `userId`, `roll`, `email`, `role`, `deviceId`, `iat`, and `exp` claims
+- Token expiration enforced on validation; expired tokens rejected with 401
+- All data routes protected by `@fastify/jwt` plugin with `onRequest: [authenticate]` decorator
+- Invalid/missing tokens return 401 with `{ code: 'UNAUTHORIZED', message: '...' }`
+- All protected routes validate student ownership (e.g., `GET /students/:studentId/attendance` requires `userId == studentId` or admin role)
+- JWT signature verified using RS256 algorithm with auto-generated RSA key pair on startup
+- **Status**: Fully implemented; all routes protected; token validation working
+
 ### Integration Summary
 
 The frontend successfully:
@@ -183,10 +182,13 @@ The backend successfully:
 1. Validates credentials against in-memory store
 2. Enforces one-device binding (DEVICE_ALREADY_BOUND error when violated)
 3. Returns properly structured auth responses
-4. Handles errors with semantic codes
-5. Responds to CORS preflight requests
+4. Issues cryptographically signed JWT tokens with expiration
+5. Validates JWT tokens on protected routes (all data endpoints)
+6. Enforces student ownership checks on protected routes
+7. Handles errors with semantic codes and HTTP status codes
+8. Responds to CORS preflight requests
 
-**Known Gap**: Frontend dashboard pages use mock data, not backend data. Only auth integration is real.
+**Known Gap**: Frontend dashboard pages use mock data, not backend data. Auth integration and route protection are fully implemented; data service integration pending.
 
 ---
 

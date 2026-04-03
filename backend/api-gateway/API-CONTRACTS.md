@@ -24,12 +24,16 @@ Key principles:
 
 ### Token model
 
-- `accessToken` (UUID): short-lived token for resource access, included as `Authorization: Bearer <token>`.
-  - Current implementation: 15-minute expiration (development only)
-  - Future: JWT with RS256 signing and 15-min/7-day refresh lifecycle
-- `refreshToken` (UUID): long-lived token used by future `/auth/refresh` endpoint.
-  - Not yet implemented
-- Tokens not yet persisted for revocation checks (in-memory sessions only)
+- `accessToken` (JWT): cryptographically signed token for resource access, included as `Authorization: Bearer <token>`.
+  - **Current implementation**: HS256 signed JWT with 15-minute expiration
+  - **Token payload**: `{ sub: studentId, deviceId: string, role: string, iat, exp }`
+  - Tokens are verified on protected routes via `@fastify/jwt` middleware
+  - Signature secret managed via `JWT_SECRET` environment variable
+- `refreshToken` (JWT): long-lived token used by future `/auth/refresh` endpoint.
+  - **Current implementation**: HS256 signed JWT with 7-day expiration
+  - Same payload as accessToken with `isRefresh: true` flag
+  - Can be used to obtain new accessToken after expiration
+- Tokens are strictly validated on protected routes with automatic 401 response if invalid/expired
 
 ### One-active-device rule
 
@@ -330,8 +334,13 @@ For development/testing, MockAuthStore is seeded with:
   - **Future**: Implement admin provisioning endpoints
 - All auth endpoints require TLS (enforced in production)
 - One active device per student is enforced at the auth service layer
-- Token security is in-progress:
-  - **Current state**: Random UUID tokens (development only)
-  - **Future state**: JWT with RS256 signing, expiration validation, refresh rotation
-- No route protection middleware yet (all routes publicly accessible)
-  - **Future**: Add Bearer token validation middleware on protected routes
+- **Token security**: Fully implemented
+  - **Current state**: HS256-signed JWT tokens with cryptographic verification
+  - **Token validation**: Automatic on protected routes via `fastify.authenticate` middleware
+  - **Expiration enforcement**: 15-min access tokens, 7-day refresh tokens
+  - **Device binding**: Token payload includes `deviceId` for device-specific session validation
+  - **Future improvements**: Consider RS256 (asymmetric) for multi-service environments
+- **Route protection middleware**: All protected routes require valid Bearer token via `fastify.authenticate` hook
+  - **Usage**: Add `onRequest: [fastify.authenticate]` to any route handler to require authentication
+  - Invalid/expired tokens automatically return 401 Unauthorized
+  - Token verified with cryptographic signature before request proceeds

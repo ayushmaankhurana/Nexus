@@ -13,7 +13,11 @@ import { AppError } from '@nexus/core';
 
 const authPlugin: FastifyPluginAsync = async (fastify) => {
   const store = new MockAuthStore();
-  const authService = new AuthService(store);
+  
+  // Pass a wrapper function that uses fastify.jwt.sign
+  const authService = new AuthService(store, (payload, expiresIn) => {
+    return fastify.jwt.sign(payload, { expiresIn });
+  });
 
   fastify.decorate('authService', authService);
 

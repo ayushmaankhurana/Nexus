@@ -3,7 +3,7 @@ import { MockAuthStore } from '../stores/mock-auth-store';
 import { AuthResponse } from '../schemas/auth';
 
 export class AuthService {
-  constructor(private store: MockAuthStore) {}
+  constructor(private store: MockAuthStore, private signJwt: (payload: any, expiresIn: string) => string) {}
 
   activate(activationToken: string, password: string): StudentAccount {
     return this.store.activateAccountByToken(activationToken, password);
@@ -49,8 +49,12 @@ export class AuthService {
       );
     }
 
-    const session = this.store.createSession(account.studentId, deviceId);
+    const payload = { sub: account.studentId, deviceId, role: 'student' };
+    const accessToken = this.signJwt(payload, '15m');
+    const refreshToken = this.signJwt({ ...payload, isRefresh: true }, '7d');
 
+    const session = this.store.createSession(account.studentId, deviceId, accessToken, refreshToken);
+    
     return {
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
@@ -104,15 +108,15 @@ export class AuthService {
       );
     }
 
-    const { newSession } = this.store.switchDevice(
-      studentId,
-      oldDeviceId,
-      newDeviceId
-    );
+    const payload = { sub: studentId, deviceId: newDeviceId, role: 'student' };
+    const accessToken = this.signJwt(payload, '15m');
+    const refreshToken = this.signJwt({ ...payload, isRefresh: true }, '7d');
+
+    this.store.switchDevice(studentId, oldDeviceId, newDeviceId, accessToken, refreshToken);
 
     return {
-      accessToken: newSession.accessToken,
-      refreshToken: newSession.refreshToken,
+      accessToken,
+      refreshToken,
       expiresIn: 900,
       tokenType: 'Bearer',
       user: {
