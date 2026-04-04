@@ -143,6 +143,9 @@ import {
   LoginRequestSchema,
   LogoutRequestSchema,
   DeviceSwitchRequestSchema,
+  RefreshRequestSchema, // <-- Added
+  AuthResponseSchema,   // <-- Added
+  type RefreshRequest   // <-- Added
 } from '../schemas/auth';
 import { AppError } from '@nexus/core';
 import { PrismaAuthStore } from '../stores/prisma-auth-store';
@@ -161,7 +164,6 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.post('/auth/activate', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const body = ActivateRequestSchema.parse(request.body);
-      // Added AWAIT
       const account = await fastify.authService.activate(
         body.activationToken,
         body.password
@@ -183,7 +185,6 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.post('/auth/login', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const body = LoginRequestSchema.parse(request.body);
-      // Added AWAIT
       const authResponse = await fastify.authService.login(
         body.identifier,
         body.password,
@@ -199,7 +200,6 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.post('/auth/logout', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const body = LogoutRequestSchema.parse(request.body);
-      // Added AWAIT
       await fastify.authService.logout(body.studentId, body.deviceId);
 
       return reply.code(200).send({
@@ -215,7 +215,6 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const body = DeviceSwitchRequestSchema.parse(request.body);
-        // Added AWAIT
         const authResponse = await fastify.authService.deviceSwitch(
           body.studentId,
           body.oldDeviceId,
@@ -228,7 +227,44 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       }
     }
   );
+
+
+  // --- NEW REFRESH ROUTE ---
+  fastify.post('/auth/refresh', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      // 1. Manually parse using Zod (just like your other routes!)
+      const body = RefreshRequestSchema.parse(request.body);
+      
+      // 2. Call the service
+      const authResponse = await fastify.authService.refresh(body.refreshToken, body.deviceId);
+      
+      return reply.code(200).send(authResponse);
+    } catch (error) {
+       return handleError(reply, error);
+    }
+  });
+
+  // // --- NEW REFRESH ROUTE ---
+  // fastify.post('/auth/refresh', {
+  //   schema: {
+  //     body: RefreshRequestSchema,
+  //     response: {
+  //       200: AuthResponseSchema,
+  //     },
+  //   },
+  // }, async (request: FastifyRequest, reply: FastifyReply) => {
+  //   try {
+  //     const { refreshToken, deviceId } = request.body as RefreshRequest;
+  //     const authResponse = await fastify.authService.refresh(refreshToken, deviceId);
+      
+  //     return reply.code(200).send(authResponse);
+  //   } catch (error) {
+  //      return handleError(reply, error);
+  //   }
+  // });
 };
+
+
 
 function handleError(reply: FastifyReply, error: unknown): FastifyReply {
   if (error instanceof ZodError) {
