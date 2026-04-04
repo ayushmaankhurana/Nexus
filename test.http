@@ -22,7 +22,7 @@ Accept: application/json
 # AUTHENTICATION FLOWS
 # ==========================================
 
-### Login with active seeded account on device A (CAPTURES JWT)
+### 1. Login with active seeded account on device A (CAPTURES JWT & REFRESH TOKEN)
 # @name loginRequest
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
@@ -34,10 +34,37 @@ Accept: application/json
   "deviceId": "{{deviceA}}"
 }
 
-### Store the token globally for protected routes below
+### Store the tokens globally for protected routes and refresh flows below
 @authToken = {{loginRequest.response.body.accessToken}}
+@refreshToken = {{loginRequest.response.body.refreshToken}}
 
-### Login same active account again on device B - should fail with DEVICE_ALREADY_BOUND
+### 2. Login same active account again on device A - should SUCCEED and override (The DX Fix)
+# @name loginOverrideRequest
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{activeRoll}}",
+  "password": "{{activePassword}}",
+  "deviceId": "{{deviceA}}"
+}
+
+### Capture the new refresh token from the override
+@newRefreshToken = {{loginOverrideRequest.response.body.refreshToken}}
+
+### 3. Refresh Flow (The Vending Machine) - Swap valid refresh token for a new session
+# @name refreshSessionRequest
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+Accept: application/json
+
+{
+  "refreshToken": "{{newRefreshToken}}",
+  "deviceId": "{{deviceA}}"
+}
+
+### 4. Login same active account again on device B - should fail with DEVICE_ALREADY_BOUND
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 Accept: application/json
@@ -48,7 +75,7 @@ Accept: application/json
   "deviceId": "{{deviceB}}"
 }
 
-### Logout active account from device A
+### 5. Logout active account from device A
 POST {{baseUrl}}/auth/logout
 Content-Type: application/json
 Accept: application/json
@@ -58,7 +85,7 @@ Accept: application/json
   "deviceId": "{{deviceA}}"
 }
 
-### Login active account again after logout on device B - should now succeed
+### 6. Login active account again after logout on device B - should now succeed
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 Accept: application/json
@@ -69,7 +96,7 @@ Accept: application/json
   "deviceId": "{{deviceB}}"
 }
 
-### Device switch active account from device B to device A
+### 7. Device switch active account from device B to device A
 POST {{baseUrl}}/auth/device/switch
 Content-Type: application/json
 Accept: application/json
@@ -80,16 +107,6 @@ Accept: application/json
   "newDeviceId": "{{deviceA}}"
 }
 
-### Logout active account from device A after switch
-POST {{baseUrl}}/auth/logout
-Content-Type: application/json
-Accept: application/json
-
-{
-  "studentId": "{{testStudentId}}",
-  "deviceId": "{{deviceA}}"
-}
-
 ### Activate pending account
 POST {{baseUrl}}/auth/activate
 Content-Type: application/json
@@ -98,17 +115,6 @@ Accept: application/json
 {
   "activationToken": "{{pendingActivationToken}}",
   "password": "{{newActivatedPassword}}"
-}
-
-### Login activated account with new password on device A
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-Accept: application/json
-
-{
-  "identifier": "{{pendingEmail}}",
-  "password": "{{newActivatedPassword}}",
-  "deviceId": "{{deviceA}}"
 }
 
 # ==========================================
@@ -193,3 +199,14 @@ Accept: application/json
 GET {{baseUrl}}/students/std_001/attendance
 Authorization: Bearer {{authToken}}
 Accept: application/json
+
+### TEST 3: Stolen/Used Refresh Token Deny (Should return 401 Unauthorized)
+# Trying to use the token that was already swapped out in flow #3
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+Accept: application/json
+
+{
+  "refreshToken": "{{newRefreshToken}}",
+  "deviceId": "{{deviceA}}"
+}

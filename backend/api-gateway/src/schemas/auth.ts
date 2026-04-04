@@ -54,3 +54,10 @@ export const ErrorResponseSchema = z.object({
 });
 
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
+
+export const RefreshRequestSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required'),
+  deviceId: z.string().min(1, 'Device ID is required'),
+});
+
+export type RefreshRequest = z.infer<typeof RefreshRequestSchema>;

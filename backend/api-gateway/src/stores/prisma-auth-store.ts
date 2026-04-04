@@ -88,6 +88,17 @@ export class PrismaAuthStore {
     return session ? this.mapSession(session) : null;
   }
 
+  async getActiveDeviceSessionByToken(refreshToken: string, deviceId: string): Promise<Session | null> {
+    const session = await this.prisma.session.findFirst({
+      where: { 
+        refreshToken: refreshToken,
+        deviceId: deviceId
+      },
+    });
+    
+    return session ? this.mapSession(session) : null;
+  }
+
   async invalidateSession(accessToken: string): Promise<void> {
     await this.prisma.session.deleteMany({
       where: { accessToken },

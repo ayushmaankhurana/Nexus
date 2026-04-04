@@ -128,9 +128,8 @@
 //     };
 //   }
 // }
-
 import { StudentAccount, AppError } from '@nexus/core';
-import { PrismaAuthStore } from '../stores/prisma-auth-store'; // Updated import
+import { PrismaAuthStore } from '../stores/prisma-auth-store';
 import { AuthResponse } from '../schemas/auth';
 
 export class AuthService {
@@ -142,7 +141,6 @@ export class AuthService {
 
   // All methods are now async
   async activate(activationToken: string, password: string): Promise<StudentAccount> {
-    // Note: Ensure activateAccountByToken is implemented in your PrismaAuthStore
     return await this.store.activateAccountByToken(activationToken, password);
   }
 
@@ -170,6 +168,7 @@ export class AuthService {
         'Invalid roll number/email or password'
       );
     }
+    
     console.log("DATABASE HANDED ME THIS ROLE:", account.role);
 
     if (account.status === 'pending') {
@@ -180,15 +179,6 @@ export class AuthService {
       );
     }
 
-    // AWAIT the device session check
-    // const hasActiveDevice = await this.store.hasActiveDeviceSession(account.studentId);
-    // if (hasActiveDevice) {
-    //   throw new AppError(
-    //     'DEVICE_ALREADY_BOUND',
-    //     409,
-    //     'Another device is already bound to this account'
-    //   );
-    // }
     const activeSession = await this.store.getActiveDeviceSession(account.studentId);
     
     if (activeSession) {
@@ -277,6 +267,56 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
+      expiresIn: 900,
+      tokenType: 'Bearer',
+      user: {
+        id: account.studentId,
+        rollNumber: account.rollNumber,
+        email: account.email,
+        role: account.role,
+      },
+    };
+  }
+
+  // --- NEW REFRESH METHOD ---
+  async refresh(refreshToken: string, deviceId: string): Promise<AuthResponse> {
+    // 1. Verify the session actually exists in Postgres
+    const session = await this.store.getActiveDeviceSessionByToken(refreshToken, deviceId);
+
+    if (!session) {
+      throw new AppError('INVALID_GRANT', 401, 'Invalid or expired refresh token');
+    }
+
+    if (session.expiresAt < new Date()) {
+      // Clean up the expired session
+      await this.store.invalidateSession(session.accessToken);
+      throw new AppError('TOKEN_EXPIRED', 401, 'Refresh token has expired. Please log in again.');
+    }
+
+    // 2. Fetch the account to get the role for the new JWT
+    const account = await this.store.getAccountById(session.studentId);
+    if (!account) {
+      throw new AppError('ACCOUNT_NOT_FOUND', 404, 'Account no longer exists');
+    }
+
+    // 3. Generate new tokens
+    const payload = { sub: account.studentId, deviceId, role: account.role };
+    const newAccessToken = this.signJwt(payload, '15m');
+    const newRefreshToken = this.signJwt({ ...payload, isRefresh: true }, '7d');
+
+    // 4. Atomically replace the old session with the new one
+    // We use switchDevice here because it perfectly handles deleting the old tokens and inserting new ones for the same device
+    await this.store.switchDevice(
+      account.studentId, 
+      deviceId, // old device ID 
+      deviceId, // new device ID is the exact same
+      newAccessToken, 
+      newRefreshToken
+    );
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
       expiresIn: 900,
       tokenType: 'Bearer',
       user: {
