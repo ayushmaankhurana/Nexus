@@ -37,7 +37,7 @@ Accept: application/json
 ### Store the tokens globally for protected routes and refresh flows below
 @authToken = {{loginRequest.response.body.accessToken}}
 @refreshToken = {{loginRequest.response.body.refreshToken}}
-
+@testStudentId = {{loginRequest.response.body.user.id}}
 ### 2. Login same active account again on device A - should SUCCEED and override (The DX Fix)
 # @name loginOverrideRequest
 POST {{baseUrl}}/auth/login

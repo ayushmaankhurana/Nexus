@@ -34,6 +34,9 @@ model Account {
   sessions        Session[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  profile           StudentProfile?   // <-- ADD THIS
+  attendanceRecords AttendanceRecord[] // <-- ADD THIS
+  accessEvents      AccessEvent[]     // <-- ADD THIS
 
   @@map("accounts") // Renames the table in Postgres to lowercase plural
 }
@@ -53,4 +56,61 @@ model Session {
 
   @@unique([accountId, deviceId]) // Enforces the "One device per account" logic at DB level
   @@map("sessions")
+}
+
+// ... (Your existing Account and Session models stay here) ...
+
+// --- PROFILE EXTENSION ---
+// Keeps auth (Account) separate from physical student data
+model StudentProfile {
+  id          String   @id @default(uuid())
+  accountId   String   @unique
+  firstName   String
+  lastName    String
+  rfidTag     String?  @unique // For physical gate access
+  
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  @@map("student_profiles")
+}
+
+// --- LOCATION & PRESENCE (Used by Person 4 & 5) ---
+model Geofence {
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g., "Main Gate", "CS Building"
+  type        String   // "BUILDING", "CLASSROOM", "PARKING"
+  coordinates Json     // Stores Polygon lat/long data
+  radius      Float?   // If using circular geofences
+  isActive    Boolean  @default(true)
+
+  @@map("geofences")
+}
+
+// --- ATTENDANCE (Used by Person 3) ---
+model AttendanceRecord {
+  id          String   @id @default(uuid())
+  accountId   String
+  classId     String   // E.g., "CS-101"
+  timestamp   DateTime @default(now())
+  status      String   // "PRESENT", "LATE", "ABSENT"
+  
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("attendance_records")
+}
+
+// --- ACCESS CONTROL (Used by Person 5 & 6) ---
+model AccessEvent {
+  id          String   @id @default(uuid())
+  accountId   String
+  geofenceId  String
+  timestamp   DateTime @default(now())
+  action      String   // "ENTRY", "EXIT", "DENIED"
+  reason      String?  // E.g., "Out of hours", "Invalid RFID"
+  
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  // Note: We don't strictly relation Geofence here in case geofences are deleted, 
+  // but you could add a relation if you prefer strict integrity.
+
+  @@map("access_events")
 }

@@ -21,6 +21,24 @@ async function main() {
     console.log(`   NEXUS API GATEWAY IS LIVE ON PORT ${port}`);
     console.log(`   ==========================================\n`);
 
+    // --- RESTORED GRACEFUL SHUTDOWN HOOKS (DO NOT DELETE) ---
+    const signals = ['SIGINT', 'SIGTERM'];
+    
+    signals.forEach((signal) => {
+      process.on(signal, async () => {
+        console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
+        try {
+          await app.close(); // Close Fastify
+          await getPrismaClient().$disconnect(); // Close Prisma DB connections
+          console.log('✅ Closed out remaining connections.');
+          process.exit(0);
+        } catch (err) {
+          console.error('❌ Error during shutdown:', err);
+          process.exit(1);
+        }
+      });
+    });
+
   } catch (err) {
     logger.error('❌ Server failed to start:');
     logger.error(err);
