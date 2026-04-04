@@ -37,6 +37,7 @@ model Account {
   profile           StudentProfile?   // <-- ADD THIS
   attendanceRecords AttendanceRecord[] // <-- ADD THIS
   accessEvents      AccessEvent[]     // <-- ADD THIS
+  incidents       Incident[]
 
   @@map("accounts") // Renames the table in Postgres to lowercase plural
 }
@@ -113,4 +114,19 @@ model AccessEvent {
   // but you could add a relation if you prefer strict integrity.
 
   @@map("access_events")
+}
+
+model Incident {
+  id          String   @id @default(uuid())
+  accountId   String
+  type        String
+  description String
+  status      String   @default("OPEN")
+  assignedTo  String?
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("incidents")
 }
