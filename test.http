@@ -1,0 +1,195 @@
+@baseUrl = http://localhost:3000
+
+@pendingRoll = CS21001
+@pendingEmail = cs21001@campus.edu
+@pendingPassword = pass123
+@newActivatedPassword = newpass123
+@pendingActivationToken = activation_token_001
+
+@activeRoll = CS21002
+@activeEmail = cs21002@campus.edu
+@activePassword = pass456
+
+@deviceA = ios-iphone-15
+@deviceB = android-pixel-8
+@testStudentId = std_002
+
+### Health
+GET {{baseUrl}}/health
+Accept: application/json
+
+# ==========================================
+# AUTHENTICATION FLOWS
+# ==========================================
+
+### Login with active seeded account on device A (CAPTURES JWT)
+# @name loginRequest
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{activeRoll}}",
+  "password": "{{activePassword}}",
+  "deviceId": "{{deviceA}}"
+}
+
+### Store the token globally for protected routes below
+@authToken = {{loginRequest.response.body.accessToken}}
+
+### Login same active account again on device B - should fail with DEVICE_ALREADY_BOUND
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{activeRoll}}",
+  "password": "{{activePassword}}",
+  "deviceId": "{{deviceB}}"
+}
+
+### Logout active account from device A
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+Accept: application/json
+
+{
+  "studentId": "{{testStudentId}}",
+  "deviceId": "{{deviceA}}"
+}
+
+### Login active account again after logout on device B - should now succeed
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{activeEmail}}",
+  "password": "{{activePassword}}",
+  "deviceId": "{{deviceB}}"
+}
+
+### Device switch active account from device B to device A
+POST {{baseUrl}}/auth/device/switch
+Content-Type: application/json
+Accept: application/json
+
+{
+  "studentId": "{{testStudentId}}",
+  "oldDeviceId": "{{deviceB}}",
+  "newDeviceId": "{{deviceA}}"
+}
+
+### Logout active account from device A after switch
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+Accept: application/json
+
+{
+  "studentId": "{{testStudentId}}",
+  "deviceId": "{{deviceA}}"
+}
+
+### Activate pending account
+POST {{baseUrl}}/auth/activate
+Content-Type: application/json
+Accept: application/json
+
+{
+  "activationToken": "{{pendingActivationToken}}",
+  "password": "{{newActivatedPassword}}"
+}
+
+### Login activated account with new password on device A
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{pendingEmail}}",
+  "password": "{{newActivatedPassword}}",
+  "deviceId": "{{deviceA}}"
+}
+
+# ==========================================
+# PROTECTED ROUTES (Requires @authToken from loginRequest)
+# ==========================================
+
+### Students me placeholder
+GET {{baseUrl}}/students/me
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Attendance history placeholder
+GET {{baseUrl}}/students/{{testStudentId}}/attendance
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Mark attendance placeholder
+POST {{baseUrl}}/students/{{testStudentId}}/attendance
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "mode": "manual-check",
+  "source": "test-http"
+}
+
+### Access check placeholder
+POST {{baseUrl}}/access/check
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "studentId": "{{testStudentId}}",
+  "checkpointId": "gate-01",
+  "mode": "entry"
+}
+
+### Access history placeholder
+GET {{baseUrl}}/access/{{testStudentId}}
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Presence summary placeholder
+GET {{baseUrl}}/presence/{{testStudentId}}
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Presence trail placeholder
+GET {{baseUrl}}/presence/{{testStudentId}}/trail
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Incidents list placeholder
+GET {{baseUrl}}/incidents
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Create incident placeholder
+POST {{baseUrl}}/incidents
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "type": "suspicious-behavior",
+  "studentId": "{{testStudentId}}",
+  "message": "Manual test incident from REST Client"
+}
+
+# ==========================================
+# SECURITY / MIDDLEWARE TESTS
+# ==========================================
+
+### TEST 1: Missing Token (Should return 401 Unauthorized)
+GET {{baseUrl}}/students/{{testStudentId}}/attendance
+Accept: application/json
+
+### TEST 2: Wrong Student ID / Ownership Check (Should return 403 Forbidden)
+# We are using std_002's token, but asking for std_001's data
+GET {{baseUrl}}/students/std_001/attendance
+Authorization: Bearer {{authToken}}
+Accept: application/json

@@ -1,11 +1,24 @@
 {
-  "name": "uicss-project",
+  "private": true,
+  "name": "nexus",
   "version": "1.0.0",
-  "description": "Unified Intelligent Campus Security System",
-  "main": "index.js",
+  "description": "Unified Campus Attendance & Security Platform",
+  "workspaces": [
+    "backend/core",
+    "backend/api-gateway"
+  ],
   "scripts": {
-    "test": "echo 'Error: no test specified' && exit 1"
+    "build": "npm run build:core && npm run build:gateway",
+    "build:core": "npm run build --workspace=@nexus/core",
+    "build:gateway": "npm run build --workspace=@nexus/api-gateway",
+    "dev": "npm run dev --workspace=@nexus/api-gateway",
+    "start": "npm start --workspace=@nexus/api-gateway",
+    "lint": "eslint . --ext .ts",
+    "test": "jest"
   },
-  "author": "Akihsi",
-  "license": "ISC"
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "dotenv-cli": "^11.0.0",
+    "typescript": "^5.0.0"
+  }
 }
