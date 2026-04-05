@@ -338,4 +338,26 @@ Accept: application/json
   "deviceId": "student-device-new-1"
 }
 
+### Get my own profile
+GET http://localhost:3000/students/me
+Authorization: Bearer {{authToken}}
+Accept: application/json
 
+### Student fetches own profile by ID
+GET http://localhost:3000/students/{{testStudentId}}/profile
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Student tries to access another student's profile
+GET http://localhost:3000/students/some-other-id/profile
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Admin fetches a student profile
+GET http://localhost:3000/students/{{testStudentId}}/profile
+Authorization: Bearer {{adminAuthToken}}
+Accept: application/json
+
+### Missing token
+GET http://localhost:3000/students/me
+Accept: application/json
