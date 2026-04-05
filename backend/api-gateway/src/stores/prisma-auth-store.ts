@@ -3,6 +3,15 @@ import bcrypt from 'bcrypt';
 import { StudentAccount, Session } from '@nexus/core';
 import { getPrismaClient } from '../lib/prisma'; // <-- Import the singleton
 
+type CreateStudentAccountInput = {
+  rollNumber: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  rfidTag?: string;
+  activationToken: string;
+};
+
 export class PrismaAuthStore {
   private prisma: PrismaClient;
 
@@ -50,6 +59,59 @@ export class PrismaAuthStore {
   async getAccountById(studentId: string): Promise<StudentAccount | null> {
     const account = await this.prisma.account.findUnique({ where: { id: studentId } });
     return account ? this.mapAccount(account) : null;
+  }
+
+    async getAccountByRollNumber(rollNumber: string): Promise<StudentAccount | null> {
+    const account = await this.prisma.account.findUnique({
+      where: { rollNumber },
+    });
+
+    return account ? this.mapAccount(account) : null;
+  }
+
+  async getAccountByEmail(email: string): Promise<StudentAccount | null> {
+    const account = await this.prisma.account.findUnique({
+      where: { email },
+    });
+
+    return account ? this.mapAccount(account) : null;
+  }
+
+    async createStudentAccount(input: CreateStudentAccountInput): Promise<any> {
+    const createdAccount = await this.prisma.account.create({
+      data: {
+        rollNumber: input.rollNumber,
+        email: input.email,
+        password: '',
+        status: 'PENDING',
+        role: 'STUDENT',
+        activationToken: input.activationToken,
+        profile: {
+          create: {
+            firstName: input.firstName,
+            lastName: input.lastName,
+            rfidTag: input.rfidTag,
+          },
+        },
+      },
+      include: {
+        profile: true,
+      },
+    });
+
+    return {
+      studentId: createdAccount.id,
+      rollNumber: createdAccount.rollNumber,
+      email: createdAccount.email,
+      role: createdAccount.role.toLowerCase(),
+      status: createdAccount.status.toLowerCase(),
+      activationToken: createdAccount.activationToken ?? undefined,
+      profile: {
+        firstName: createdAccount.profile?.firstName ?? '',
+        lastName: createdAccount.profile?.lastName ?? '',
+        rfidTag: createdAccount.profile?.rfidTag ?? undefined,
+      },
+    };
   }
 
   async createSession(

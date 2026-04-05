@@ -8,7 +8,7 @@
 
 @activeRoll = CS21002
 @activeEmail = cs21002@campus.edu
-@activePassword = pass123
+@activePassword = pass456
 
 @deviceA = ios-iphone-15
 @deviceB = android-pixel-8
@@ -229,7 +229,6 @@ Accept: application/json
   "password": "{{adminPassword}}",
   "deviceId": "{{adminDevice}}"
 }
-### Store admin token for later requests
 
 @adminAuthToken = {{adminLogin.response.body.accessToken}}
 @adminStudentId = {{adminLogin.response.body.user.id}}
@@ -249,7 +248,7 @@ Accept: application/json
   "lastName": "Kapoor",
   "rfidTag": "RFID_E_005"
 }
-### Admin creates a new pending student
+
 @createdStudentActivationToken = {{createStudentSuccess.response.body.activationToken}}
 @createdStudentEmail = {{createStudentSuccess.response.body.email}}
 

@@ -61,3 +61,29 @@ export const RefreshRequestSchema = z.object({
 });
 
 export type RefreshRequest = z.infer<typeof RefreshRequestSchema>;
+
+export const CreateStudentRequestSchema = z.object({
+  rollNumber: z.string().min(1, 'rollNumber is required'),
+  email: z.string().email('valid email is required'),
+  firstName: z.string().min(1, 'firstName is required'),
+  lastName: z.string().min(1, 'lastName is required'),
+  rfidTag: z.string().min(1).optional(),
+});
+
+export type CreateStudentRequest = z.infer<typeof CreateStudentRequestSchema>;
+
+export const CreateStudentResponseSchema = z.object({
+  id: z.string(),
+  rollNumber: z.string(),
+  email: z.string().email(),
+  role: z.string(),
+  status: z.string(),
+  profile: z.object({
+    firstName: z.string(),
+    lastName: z.string(),
+    rfidTag: z.string().optional(),
+  }),
+  activationToken: z.string().optional(),
+});
+
+export type CreateStudentResponse = z.infer<typeof CreateStudentResponseSchema>;

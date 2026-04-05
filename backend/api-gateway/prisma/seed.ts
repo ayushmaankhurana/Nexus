@@ -110,6 +110,23 @@ async function main() {
     },
   });
 
+    const adminUser = await prisma.account.create({
+    data: {
+      rollNumber: 'ADM1001',
+      email: 'admin1@campus.edu',
+      password: adminPassword,
+      status: AccountStatus.ACTIVE,
+      role: UserRole.ADMIN,
+      profile: {
+        create: {
+          firstName: 'Admin',
+          lastName: 'User',
+          rfidTag: 'RFID_ADMIN_001',
+        },
+      },
+    },
+  });
+
   console.log("Creating campus geofences...");
 
   const mainGate = await prisma.geofence.create({

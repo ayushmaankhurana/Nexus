@@ -8,6 +8,9 @@ import attendance from './routes/attendance';
 import access from './routes/access';
 import presence from './routes/presence';
 import incidents from './routes/incidents';
+import adminStudentsRoute from './routes/admin-students';
+
+
 
 // Note: Hum config ko parameter ke through lenge, 
 // isliye direct import ki dependency kam ho jayegi.
@@ -38,6 +41,7 @@ export async function createApp(config?: any) {
   await app.register(fastifyJwt, {
     secret: jwtSecret || 'dev-backup-secret-123', 
   });
+  
 
   // --- FIX 2: GLOBAL ERROR HANDLER ---
   app.setErrorHandler((error, request, reply) => {
@@ -92,6 +96,7 @@ export async function createApp(config?: any) {
   await app.register(access);
   await app.register(presence);
   await app.register(incidents);
+  await app.register(adminStudentsRoute);
 
   return app;
 }
