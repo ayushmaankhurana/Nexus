@@ -87,3 +87,16 @@ export const CreateStudentResponseSchema = z.object({
 });
 
 export type CreateStudentResponse = z.infer<typeof CreateStudentResponseSchema>;
+
+export const ProfileResponseSchema = z.object({
+  id: z.string(),
+  rollNumber: z.string(),
+  email: z.string().email(),
+  role: z.string(),
+  status: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  rfidTag: z.string().nullable(),
+});
+
+export type ProfileResponse = z.infer<typeof ProfileResponseSchema>;
