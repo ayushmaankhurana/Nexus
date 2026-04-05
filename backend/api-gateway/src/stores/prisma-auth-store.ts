@@ -120,7 +120,7 @@ export class PrismaAuthStore {
     accessToken: string,
     refreshToken: string
   ): Promise<Session> {
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days, 
 
     const session = await this.prisma.session.create({
       data: {
@@ -154,7 +154,8 @@ export class PrismaAuthStore {
     const session = await this.prisma.session.findFirst({
       where: { 
         refreshToken: refreshToken,
-        deviceId: deviceId
+        deviceId: deviceId,
+        expiresAt: { gt: new Date() },
       },
     });
     
@@ -221,4 +222,33 @@ export class PrismaAuthStore {
       }),
     ]);
   }
+
+  async getProfileById(studentId: string): Promise<{
+  id: string;
+  rollNumber: string;
+  email: string;
+  role: string;
+  status: string;
+  firstName: string;
+  lastName: string;
+  rfidTag: string | null;
+} | null> {
+  const account = await this.prisma.account.findUnique({
+    where: { id: studentId },
+    include: { profile: true },
+  });
+
+  if (!account || !account.profile) return null;
+
+  return {
+    id: account.id,
+    rollNumber: account.rollNumber,
+    email: account.email,
+    role: account.role.toLowerCase(),
+    status: account.status.toLowerCase(),
+    firstName: account.profile.firstName,
+    lastName: account.profile.lastName,
+    rfidTag: account.profile.rfidTag ?? null,
+  };
+}
 }
