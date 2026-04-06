@@ -20,26 +20,40 @@ enum AccountStatus {
   ACTIVE
 }
 
+enum AccessAction {
+  ENTRY
+  EXIT
+  DENIED
+}
+
+enum AccessReason {
+  OUT_OF_HOURS
+  INVALID_RFID
+  INACTIVE_ACCOUNT
+  UNAUTHORIZED_AREA
+  UNKNOWN_GEOFENCE
+}
+
 // 2. The Core Identity Model
 model Account {
-  id              String        @id @default(uuid())
-  rollNumber      String        @unique
-  email           String        @unique
-  password        String        // Note: We will hash this in the next step
-  role            UserRole      @default(STUDENT)
-  status          AccountStatus @default(PENDING)
-  activationToken String?       @unique
-  resetToken      String?       @unique
+  id                  String        @id @default(uuid())
+  rollNumber          String        @unique
+  email               String        @unique
+  password            String // Note: We will hash this in the next step
+  role                UserRole      @default(STUDENT)
+  status              AccountStatus @default(PENDING)
+  activationToken     String?       @unique
+  resetToken          String?       @unique
   resetTokenExpiresAt DateTime?
-  
+
   // Relations
-  sessions        Session[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  profile           StudentProfile?   // <-- ADD THIS
+  sessions          Session[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  profile           StudentProfile? // <-- ADD THIS
   attendanceRecords AttendanceRecord[] // <-- ADD THIS
-  accessEvents      AccessEvent[]     // <-- ADD THIS
-  incidents       Incident[]
+  accessEvents      AccessEvent[] // <-- ADD THIS
+  incidents         Incident[]
 
   @@map("accounts") // Renames the table in Postgres to lowercase plural
 }
@@ -55,7 +69,7 @@ model Session {
   expiresAt    DateTime
 
   // Relations
-  account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@unique([accountId, deviceId]) // Enforces the "One device per account" logic at DB level
   @@map("sessions")
@@ -66,69 +80,75 @@ model Session {
 // --- PROFILE EXTENSION ---
 // Keeps auth (Account) separate from physical student data
 model StudentProfile {
-  id          String   @id @default(uuid())
-  accountId   String   @unique
-  firstName   String
-  lastName    String
-  rfidTag     String?  @unique // For physical gate access
-  
-  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  
+  id        String  @id @default(uuid())
+  accountId String  @unique
+  firstName String
+  lastName  String
+  rfidTag   String? @unique // For physical gate access
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
   @@map("student_profiles")
 }
 
 // --- LOCATION & PRESENCE (Used by Person 4 & 5) ---
 model Geofence {
-  id          String   @id @default(uuid())
-  name        String   @unique // e.g., "Main Gate", "CS Building"
-  type        String   // "BUILDING", "CLASSROOM", "PARKING"
-  coordinates Json     // Stores Polygon lat/long data
-  radius      Float?   // If using circular geofences
-  isActive    Boolean  @default(true)
+  id           String        @id @default(uuid())
+  name         String        @unique // e.g., "Main Gate", "CS Building"
+  type         String // "BUILDING", "CLASSROOM", "PARKING"
+  coordinates  Json // Stores Polygon lat/long data
+  radius       Float? // If using circular geofences
+  isActive     Boolean       @default(true)
+  accessEvents AccessEvent[]
 
   @@map("geofences")
 }
 
 // --- ATTENDANCE (Used by Person 3) ---
 model AttendanceRecord {
-  id          String   @id @default(uuid())
-  accountId   String
-  classId     String   // E.g., "CS-101"
-  timestamp   DateTime @default(now())
-  status      String   // "PRESENT", "LATE", "ABSENT"
-  
-  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  accountId String
+  classId   String // E.g., "CS-101"
+  timestamp DateTime @default(now())
+  status    String // "PRESENT", "LATE", "ABSENT"
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@map("attendance_records")
 }
 
 // --- ACCESS CONTROL (Used by Person 5 & 6) ---
 model AccessEvent {
-  id          String   @id @default(uuid())
-  accountId   String
-  geofenceId  String
-  timestamp   DateTime @default(now())
-  action      String   // "ENTRY", "EXIT", "DENIED"
-  reason      String?  // E.g., "Out of hours", "Invalid RFID"
-  
-  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id         String        @id @default(uuid())
+  accountId  String
+  geofenceId String
+  timestamp  DateTime      @default(now())
+  action     AccessAction // "ENTRY", "EXIT", "DENIED"
+  reason     AccessReason? // E.g., "Out of hours", "Invalid RFID"
+
+  account  Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  geofence Geofence @relation(fields: [geofenceId], references: [id], onDelete: Restrict)
+
   // Note: We don't strictly relation Geofence here in case geofences are deleted, 
   // but you could add a relation if you prefer strict integrity.
 
+  @@index([accountId, timestamp])
+  @@index([geofenceId, timestamp])
+  @@index([action, timestamp])
   @@map("access_events")
 }
 
 model Incident {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   accountId   String
   type        String
   description String
-  status      String   @default("OPEN")
+  status      String    @default("OPEN")
   assignedTo  String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   resolvedAt  DateTime?
 
-  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@map("incidents")
 }
