@@ -29,6 +29,8 @@ model Account {
   role            UserRole      @default(STUDENT)
   status          AccountStatus @default(PENDING)
   activationToken String?       @unique
+  resetToken      String?       @unique
+  resetTokenExpiresAt DateTime?
   
   // Relations
   sessions        Session[]
@@ -129,4 +131,43 @@ model Incident {
   account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@map("incidents")
+async setResetToken(
+    accountId: string,
+    token: string,
+    expiresAt: Date
+  ): Promise<void> {
+    await this.prisma.account.update({
+      where: { id: accountId },
+      data: {
+        resetToken: token,
+        resetTokenExpiresAt: expiresAt,
+      },
+    });
+  }
+
+  async getAccountByResetToken(token: string): Promise<StudentAccount | null> {
+    const account = await this.prisma.account.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiresAt: { gt: new Date() },
+      },
+    });
+    return account ? this.mapAccount(account) : null;
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+    await this.prisma.account.updateMany({
+      where: {
+        resetToken: token,
+        resetTokenExpiresAt: { gt: new Date() },
+      },
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiresAt: null,
+      },
+    });
+  }
 }

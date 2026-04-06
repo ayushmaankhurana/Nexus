@@ -100,3 +100,15 @@ export const ProfileResponseSchema = z.object({
 });
 
 export type ProfileResponse = z.infer<typeof ProfileResponseSchema>;
+export const ForgotPasswordRequestSchema = z.object({
+  identifier: z.string().min(1, 'Roll number or email is required'),
+});
+
+export type ForgotPasswordRequest = z.infer<typeof ForgotPasswordRequestSchema>;
+
+export const ResetPasswordRequestSchema = z.object({
+  resetToken: z.string().min(1, 'Reset token is required'),
+  newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
+export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequestSchema>;
