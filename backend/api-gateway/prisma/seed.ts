@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, AccountStatus } from '@prisma/client';
+import { PrismaClient, UserRole, AccountStatus, AccessAction, AccessReason } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 import bcrypt from 'bcrypt';
@@ -223,44 +223,65 @@ async function main() {
   console.log("Creating access history...");
 
   await prisma.accessEvent.createMany({
-    data: [
-      {
-        accountId: anjali.id,
-        geofenceId: mainGate.id,
-        action: 'ENTRY',
-        reason: null,
-        timestamp: new Date('2026-04-01T08:45:00Z'),
-      },
-      {
-        accountId: anjali.id,
-        geofenceId: cs101.id,
-        action: 'ENTRY',
-        reason: null,
-        timestamp: new Date('2026-04-01T08:55:00Z'),
-      },
-      {
-        accountId: rohan.id,
-        geofenceId: backGate.id,
-        action: 'ENTRY',
-        reason: null,
-        timestamp: new Date('2026-04-02T08:50:00Z'),
-      },
-      {
-        accountId: priya.id,
-        geofenceId: parkingA.id,
-        action: 'DENIED',
-        reason: 'Parking entitlement missing',
-        timestamp: new Date('2026-04-03T08:40:00Z'),
-      },
-      {
-        accountId: priya.id,
-        geofenceId: mainGate.id,
-        action: 'ENTRY',
-        reason: null,
-        timestamp: new Date('2026-04-03T08:42:00Z'),
-      },
-    ],
-  });
+  data: [
+    {
+      accountId: anjali.id,
+      geofenceId: mainGate.id,
+      action: AccessAction.ENTRY,
+      reason: null,
+      timestamp: new Date('2026-04-01T08:45:00Z'),
+    },
+    {
+      accountId: anjali.id,
+      geofenceId: cs101.id,
+      action: AccessAction.ENTRY,
+      reason: null,
+      timestamp: new Date('2026-04-01T08:55:00Z'),
+    },
+    {
+      accountId: anjali.id,
+      geofenceId: mainGate.id,
+      action: AccessAction.EXIT,
+      reason: null,
+      timestamp: new Date('2026-04-01T17:05:00Z'),
+    },
+    {
+      accountId: rohan.id,
+      geofenceId: backGate.id,
+      action: AccessAction.ENTRY,
+      reason: null,
+      timestamp: new Date('2026-04-02T08:50:00Z'),
+    },
+    {
+      accountId: priya.id,
+      geofenceId: parkingA.id,
+      action: AccessAction.DENIED,
+      reason: AccessReason.UNAUTHORIZED_AREA,
+      timestamp: new Date('2026-04-03T08:40:00Z'),
+    },
+    {
+      accountId: priya.id,
+      geofenceId: mainGate.id,
+      action: AccessAction.ENTRY,
+      reason: null,
+      timestamp: new Date('2026-04-03T08:42:00Z'),
+    },
+    {
+      accountId: rahul.id,
+      geofenceId: mainGate.id,
+      action: AccessAction.DENIED,
+      reason: AccessReason.INACTIVE_ACCOUNT,
+      timestamp: new Date('2026-04-04T08:35:00Z'),
+    },
+    {
+      accountId: rohan.id,
+      geofenceId: cs103.id,
+      action: AccessAction.DENIED,
+      reason: AccessReason.INVALID_RFID,
+      timestamp: new Date('2026-04-04T09:10:00Z'),
+    },
+  ],
+});
 
   console.log("✅ Seed completed successfully!");
 }
