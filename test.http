@@ -1,3 +1,16 @@
+### MASTER ORDER
+# Run this file in this order for the least friction:
+# 1. Health.
+# 2. Login requests only: active student loginRequest, securityLoginRequest, adminLoginRequest, facultyLoginRequest.
+# 3. New attendance flow: attendance/me, adminAttendanceAbsent, facultySessionSummaryBefore, facultyManualExcuse, facultySessionSummaryAfter, then the optional student negative tests.
+# 4. Student/admin profile and access tests.
+# 5. Admin student-provisioning tests.
+# 6. Session mutation tests like logout/device switch.
+# 7. Password-reset tests last, because they change the seeded password for CS21002.
+# Notes:
+# - The new attendance flow assumes the DB was freshly seeded from prisma/seed.ts.
+# - If your REST client does not resolve array-based response variables automatically, copy the first row's accountId and classSessionTemplateId from adminAttendanceAbsent into the variables below.
+
 @baseUrl = http://localhost:3000
 
 @pendingRoll = CS21001
@@ -25,6 +38,16 @@
 @securityEmail = security1@campus.edu
 @securityPassword = secure123
 @securityDevice = macbook-security-1
+
+@facultyRoll = FAC1001
+@facultyEmail = faculty1@campus.edu
+@facultyPassword = secure123
+@facultyDevice = macbook-faculty-1
+
+### Used by the new attendance flow below. These should resolve from adminAttendanceAbsent.
+@seededAbsentStudentId = {{adminAttendanceAbsent.response.body.data[0].accountId}}
+@seededAbsentTemplateId = {{adminAttendanceAbsent.response.body.data[0].classSessionTemplateId}}
+@seededAbsentScheduledDate = 2026-04-02
 
 ### Live seeded IDs after the latest Prisma reset/seed. Refresh these with psql if you reseed again.
 @pendingStudentId = f4fc9f8b-3ee1-40f8-b834-8322eff17bbc
@@ -135,6 +158,7 @@ Accept: application/json
   "deviceId": "{{securityDevice}}"
 }
 
+### Save Token for security user
 @securityToken = {{securityLoginRequest.response.body.accessToken}}
 
 ### Admin login for access audit endpoints
@@ -149,7 +173,24 @@ Accept: application/json
   "deviceId": "{{adminDevice}}"
 }
 
+### Save Token for admin user
 @adminToken = {{adminLoginRequest.response.body.accessToken}}
+
+### Faculty login for attendance endpoints
+# @name facultyLoginRequest
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{facultyRoll}}",
+  "password": "{{facultyPassword}}",
+  "deviceId": "{{facultyDevice}}"
+}
+
+### Save Token for faculty user
+@facultyToken = {{facultyLoginRequest.response.body.accessToken}}
+@facultyAccountId = {{facultyLoginRequest.response.body.user.id}}
 
 ### 7. Device switch active account from device B to device A
 POST {{baseUrl}}/auth/device/switch
@@ -255,7 +296,8 @@ Accept: application/json
 }
 
 # ==========================================
-# PROTECTED ROUTES (Requires @authToken from loginRequest)
+# PROTECTED ROUTES
+# Run these before logout/device-switch/password-reset if you want to keep @authToken valid.
 # ==========================================
 
 ### Students me placeholder
@@ -263,20 +305,83 @@ GET {{baseUrl}}/students/me
 Authorization: Bearer {{authToken}}
 Accept: application/json
 
-### Attendance history placeholder
-GET {{baseUrl}}/students/{{testStudentId}}/attendance
+### Student attendance history via the new endpoint
+### Expected: 200 OK with a paginated body { data, total, page, pageSize }. Seeded CS21002 should have attendance rows.
+# @name studentAttendanceMe
+GET {{baseUrl}}/attendance/me
 Authorization: Bearer {{authToken}}
 Accept: application/json
 
-### Mark attendance placeholder
-POST {{baseUrl}}/students/{{testStudentId}}/attendance
+### Admin lists seeded ABSENT attendance rows to bootstrap dynamic IDs for the faculty tests
+### Expected: 200 OK with at least one row. The first row should be Priya's ABSENT record for 2026-04-02 from the seed.
+# @name adminAttendanceAbsent
+GET {{baseUrl}}/attendance/records?status=ABSENT&page=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+Accept: application/json
+
+### Faculty views the seeded session summary before changing the record
+### Expected: 200 OK. Before the manual update, this should show total: 1, absent: 1, excused: 0 for 2026-04-02.
+# @name facultySessionSummaryBefore
+GET {{baseUrl}}/attendance/sessions/{{seededAbsentTemplateId}}/summary?scheduledDate={{seededAbsentScheduledDate}}
+Authorization: Bearer {{facultyToken}}
+Accept: application/json
+
+### Faculty manually changes the seeded ABSENT record to EXCUSED
+### Expected: 201 Created with attendance.status = EXCUSED and attendance.method = MANUAL.
+# @name facultyManualExcuse
+POST {{baseUrl}}/attendance/faculty/mark
+Authorization: Bearer {{facultyToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "studentAccountId": "{{seededAbsentStudentId}}",
+  "classSessionTemplateId": "{{seededAbsentTemplateId}}",
+  "scheduledDate": "{{seededAbsentScheduledDate}}",
+  "status": "EXCUSED"
+}
+
+### Faculty views the same session summary after the manual update
+### Expected: 200 OK. After the update, total should stay 1, absent should drop to 0, and excused should become 1.
+# @name facultySessionSummaryAfter
+GET {{baseUrl}}/attendance/sessions/{{seededAbsentTemplateId}}/summary?scheduledDate={{seededAbsentScheduledDate}}
+Authorization: Bearer {{facultyToken}}
+Accept: application/json
+
+### Student tries to list all attendance records
+### Expected: 403 Forbidden because /attendance/records is for ADMIN or FACULTY only.
+GET {{baseUrl}}/attendance/records?page=1&pageSize=5
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Student tries to mark attendance for an old seeded session
+### Expected: 400 OUTSIDE_ATTENDANCE_WINDOW because the scheduled date is intentionally in the past.
+POST {{baseUrl}}/attendance/mark
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 Accept: application/json
 
 {
-  "mode": "manual-check",
-  "source": "test-http"
+  "classSessionTemplateId": "{{seededAbsentTemplateId}}",
+  "scheduledDate": "{{seededAbsentScheduledDate}}",
+  "qrToken": "rest-client-old-session",
+  "qrIssuedAt": 9999999999999,
+  "geofenceValidated": true
+}
+
+### Student tries to mark attendance without geofence validation
+### Expected: 400 GEOFENCE_FAILED because geofenceValidated is false.
+POST {{baseUrl}}/attendance/mark
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "classSessionTemplateId": "{{seededAbsentTemplateId}}",
+  "scheduledDate": "{{seededAbsentScheduledDate}}",
+  "qrToken": "rest-client-no-geofence",
+  "qrIssuedAt": 9999999999999,
+  "geofenceValidated": false
 }
 
 ### Access check should be forbidden for a student token

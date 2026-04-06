@@ -46,10 +46,10 @@ enum AttendanceStatus {
 
 // Method used to record attendance
 enum AttendanceMethod {
-  QR        // Dynamic QR scan (V1 primary)
-  BLE       // BLE beacon (Vfinal primary)
-  MANUAL    // Faculty/admin override
-  GEOFENCE  // Geofence-only (presence, NOT sufficient alone for strict attendance)
+  QR // Dynamic QR scan (V1 primary)
+  BLE // BLE beacon (Vfinal primary)
+  MANUAL // Faculty/admin override
+  GEOFENCE // Geofence-only (presence, NOT sufficient alone for strict attendance)
 }
 
 // 2. The Core Identity Model
@@ -65,13 +65,13 @@ model Account {
   resetTokenExpiresAt DateTime?
 
   // Relations
-  sessions          Session[]
-  profile           StudentProfile? // <-- ADD THIS
-  facultyProfile    FacultyProfile? // apparently we need this according to handoff 06-04 so am adding this
-  attendanceRecords AttendanceRecord[] // <-- ADD THIS
-  accessEvents      AccessEvent[] // <-- ADD THIS
-  incidents         Incident[]
-  groupMemberships  StudentGroupMembership[] // needed for groups or class roll call
+  sessions           Session[]
+  profile            StudentProfile? // <-- ADD THIS
+  facultyProfile     FacultyProfile? // apparently we need this according to handoff 06-04 so am adding this
+  attendanceRecords  AttendanceRecord[] // <-- ADD THIS
+  accessEvents       AccessEvent[] // <-- ADD THIS
+  incidents          Incident[]
+  groupMemberships   StudentGroupMembership[] // needed for groups or class roll call
   facultyAssignments FacultyAssignment[] // incharge of the class like can this person mark the attendance for the class or not.
 
   createdAt DateTime @default(now())
@@ -120,25 +120,24 @@ model FacultyProfile {
   firstName  String
   lastName   String
   department String
-  title      String? // e.g. "Associate Professor"
+  title      String?
 
-  account    Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  assignments FacultyAssignment[]
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@map("faculty_profiles")
 }
 
 // 4. TIMETABLE (Person 3 scope) basically how the time table would be like 
 model Course {
-  id         String    @id @default(uuid())
-  code       String    @unique // e.g. "CS101"
-  title      String             // e.g. "Data Structures"
+  id         String @id @default(uuid())
+  code       String @unique // e.g. "CS101"
+  title      String // e.g. "Data Structures"
   department String
-  credits    Int       @default(3)
+  credits    Int    @default(3)
 
-  sections   Section[]
+  sections Section[]
 
-  createdAt  DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@map("courses")
 }
@@ -146,13 +145,13 @@ model Course {
 model Section {
   id       String @id @default(uuid())
   courseId String
-  code     String  // e.g. "A", "B"
-  term     String  // e.g. "Spring"
-  year     Int     // e.g. 2026
+  code     String // e.g. "A", "B"
+  term     String // e.g. "Spring"
+  year     Int // e.g. 2026
 
-  course   Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  groups   StudentGroup[]
-  templates ClassSessionTemplate[]
+  course      Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  groups      StudentGroup[]
+  templates   ClassSessionTemplate[]
   assignments FacultyAssignment[]
 
   @@unique([courseId, code, term, year])
@@ -163,8 +162,8 @@ model Section {
 model StudentGroup {
   id        String @id @default(uuid())
   sectionId String
-  code      String  // e.g. "A1", "A2"
-  name      String  // e.g. "Group 1"
+  code      String // e.g. "A1", "A2"
+  name      String // e.g. "Group 1"
 
   section     Section                  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   memberships StudentGroupMembership[]
@@ -191,12 +190,11 @@ model FacultyAssignment {
   id               String  @id @default(uuid())
   facultyAccountId String
   sectionId        String?
-  groupId          String? // null = teaches whole section
+  groupId          String?
 
-  faculty  Account       @relation(fields: [facultyAccountId], references: [id], onDelete: Cascade)
-  section  Section?      @relation(fields: [sectionId], references: [id], onDelete: SetNull)
-  group    StudentGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  facultyProfile FacultyProfile? @relation(fields: [facultyAccountId], references: [accountId])
+  faculty Account       @relation(fields: [facultyAccountId], references: [id], onDelete: Cascade)
+  section Section?      @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  group   StudentGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   @@map("faculty_assignments")
 }
@@ -208,15 +206,15 @@ model ClassSessionTemplate {
   sectionId        String
   groupId          String? // null = applies to full section
   facultyAccountId String? // who teaches this slot (can differ per group)
-  dayOfWeek        Int     // 0 = Sunday … 6 = Saturday (JS convention)
-  startTime        String  // "09:00" (HH:mm, 24-hour)
-  endTime          String  // "10:00"
-  room             String  // e.g. "CS-101"
+  dayOfWeek        Int // 0 = Sunday … 6 = Saturday (JS convention)
+  startTime        String // "09:00" (HH:mm, 24-hour)
+  endTime          String // "10:00"
+  room             String // e.g. "CS-101"
   geofenceId       String? // optional geofence for location validation
 
-  section    Section       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  group      StudentGroup? @relation("GroupSessionTemplates", fields: [groupId], references: [id], onDelete: SetNull)
-  geofence   Geofence?     @relation(fields: [geofenceId], references: [id], onDelete: SetNull)
+  section  Section       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  group    StudentGroup? @relation("GroupSessionTemplates", fields: [groupId], references: [id], onDelete: SetNull)
+  geofence Geofence?     @relation(fields: [geofenceId], references: [id], onDelete: SetNull)
 
   attendanceRecords AttendanceRecord[]
 
@@ -227,14 +225,14 @@ model ClassSessionTemplate {
 model AttendanceRecord {
   id                     String           @id @default(uuid())
   accountId              String
-  classSessionTemplateId String           // replaces old raw classId String
-  scheduledDate          DateTime         // the actual calendar date of the class
+  classSessionTemplateId String // replaces old raw classId String
+  scheduledDate          DateTime // the actual calendar date of the class
   timestamp              DateTime         @default(now())
   status                 AttendanceStatus @default(ABSENT)
   method                 AttendanceMethod @default(QR)
-  qrToken                String?          // the QR token scanned (for audit)
+  qrToken                String? // the QR token scanned (for audit)
   geofenceValidated      Boolean          @default(false) // did geofence check pass?
-  markedByFacultyId      String?          // if marked manually by faculty
+  markedByFacultyId      String? // if marked manually by faculty
 
   account              Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
   classSessionTemplate ClassSessionTemplate @relation(fields: [classSessionTemplateId], references: [id], onDelete: Restrict)
@@ -248,13 +246,13 @@ model AttendanceRecord {
 
 // --- LOCATION & PRESENCE (Used by Person 4 & 5) ---
 model Geofence {
-  id           String  @id @default(uuid())
-  name         String  @unique // e.g., "Main Gate", "CS Building"
-  type         String // "BUILDING", "CLASSROOM", "PARKING"
-  coordinates  Json // Stores Polygon lat/long data
-  radius       Float? // If using circular geofences
-  isActive     Boolean @default(true)
-  accessEvents  AccessEvent[]
+  id               String                 @id @default(uuid())
+  name             String                 @unique // e.g., "Main Gate", "CS Building"
+  type             String // "BUILDING", "CLASSROOM", "PARKING"
+  coordinates      Json // Stores Polygon lat/long data
+  radius           Float? // If using circular geofences
+  isActive         Boolean                @default(true)
+  accessEvents     AccessEvent[]
   sessionTemplates ClassSessionTemplate[] //added this for connect locations (geofences) with actual classes
 
   @@map("geofences")
