@@ -15,6 +15,7 @@ import {
   AttendanceMethod,
   ClassSessionTemplate,
   Prisma,
+  UserRole,
 } from '@prisma/client';
 import { AppError } from '@nexus/core';
 import { getPrismaClient } from '../lib/prisma';
@@ -102,6 +103,12 @@ function deriveStatus(
   return null; // too late – reject
 }
 
+function buildScheduledSessionDate(dateString: string, startTime: string): Date {
+  const [year, month, day] = dateString.split('-').map(Number);
+  const [hour, minute] = startTime.split(':').map(Number);
+  return new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
+}
+
 // ── Service ────────────────────────────────────────────────────────────────────
 
 export class AttendanceService {
@@ -144,7 +151,7 @@ export class AttendanceService {
     }
 
     // 1d. Derive time-based status
-    const scheduledDate = new Date(input.scheduledDate);
+    const scheduledDate = buildScheduledSessionDate(input.scheduledDate, template.startTime);
     const status = deriveStatus(scheduledDate, template.startTime, now);
 
     if (!status) {
@@ -209,25 +216,45 @@ export class AttendanceService {
   // ── 2. Faculty manual mark ────────────────────────────────────────────────────
 
   async facultyMarkAttendance(input: FacultyMarkInput): Promise<AttendanceRecordView> {
-    // Verify faculty owns this section
-    const assignment = await this.prisma.facultyAssignment.findFirst({
-      where: {
-        facultyAccountId: input.facultyAccountId,
-        section: {
-          templates: { some: { id: input.classSessionTemplateId } },
-        },
-      },
+    const actingAccount = await this.prisma.account.findUnique({
+      where: { id: input.facultyAccountId },
+      select: { role: true },
     });
 
-    if (!assignment) {
-      throw new AppError(
-        'NOT_AUTHORIZED',
-        403,
-        'You are not assigned to the section for this session.',
-      );
+    if (!actingAccount) {
+      throw new AppError('ACCOUNT_NOT_FOUND', 404, 'Acting account not found.');
     }
 
-    const scheduledDate = new Date(input.scheduledDate);
+    // Faculty must own the section; admins are allowed to bypass assignment checks for demo operations.
+    if (actingAccount.role !== UserRole.ADMIN) {
+      const assignment = await this.prisma.facultyAssignment.findFirst({
+        where: {
+          facultyAccountId: input.facultyAccountId,
+          section: {
+            templates: { some: { id: input.classSessionTemplateId } },
+          },
+        },
+      });
+
+      if (!assignment) {
+        throw new AppError(
+          'NOT_AUTHORIZED',
+          403,
+          'You are not assigned to the section for this session.',
+        );
+      }
+    }
+
+    const template = await this.prisma.classSessionTemplate.findUnique({
+      where: { id: input.classSessionTemplateId },
+      select: { startTime: true },
+    });
+
+    if (!template) {
+      throw new AppError('SESSION_NOT_FOUND', 404, 'Class session template not found.');
+    }
+
+    const scheduledDate = buildScheduledSessionDate(input.scheduledDate, template.startTime);
 
     // Upsert: allow faculty to correct an existing mark
     const record = await this.prisma.attendanceRecord.upsert({

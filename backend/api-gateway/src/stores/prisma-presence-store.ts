@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, UserRole } from '@prisma/client';
 import { getPrismaClient } from '../lib/prisma';
 import { BLEDetection, Location } from '../services/presence/model';
 
@@ -9,6 +9,21 @@ type PersistedGeofence = {
   isActive: boolean;
   radius: number | null;
   coordinates: Prisma.JsonValue;
+};
+
+type PersistedStudentPresence = {
+  id: string;
+  rollNumber: string;
+  email: string;
+  status: string;
+  firstName: string;
+  lastName: string;
+  latestLocation: {
+    id: string;
+    latitude: number;
+    longitude: number;
+    recordedAt: Date;
+  } | null;
 };
 
 export class PrismaPresenceStore {
@@ -119,4 +134,37 @@ export class PrismaPresenceStore {
       },
     });
   }
+
+  async listStudentPresenceOverview(): Promise<PersistedStudentPresence[]> {
+    const accounts = await this.prisma.account.findMany({
+      where: { role: UserRole.STUDENT },
+      include: {
+        profile: true,
+        presenceLocations: {
+          orderBy: { recordedAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { rollNumber: 'asc' },
+    });
+
+    return accounts.map((account) => ({
+      id: account.id,
+      rollNumber: account.rollNumber,
+      email: account.email,
+      status: account.status,
+      firstName: account.profile?.firstName ?? '',
+      lastName: account.profile?.lastName ?? '',
+      latestLocation: account.presenceLocations[0]
+        ? {
+            id: account.presenceLocations[0].id,
+            latitude: account.presenceLocations[0].latitude,
+            longitude: account.presenceLocations[0].longitude,
+            recordedAt: account.presenceLocations[0].recordedAt,
+          }
+        : null,
+    }));
+  }
 }
+
+export type { PersistedGeofence, PersistedStudentPresence };

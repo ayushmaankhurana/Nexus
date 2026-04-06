@@ -1,27 +1,68 @@
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatCard } from "@/components/shared/StatCard";
 import { SectionCard, PageHeader } from "@/components/shared/PageComponents";
 import { ActivityFeed } from "@/components/shared/ActivityFeed";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { ErrorState, LoadingState } from "@/components/shared/StateComponents";
 import { CalendarCheck, DoorOpen, AlertTriangle, Smartphone, Clock, LifeBuoy, LogOut } from "lucide-react";
 import { getDisplayName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { mockAttendanceSummary, mockAccessEvents, mockAlerts, mockSession, mockActivityEvents } from "@/mocks/data";
+import { accessApi, attendanceApi } from "@/services/dataApi";
+import { mockAlerts, mockSession, mockActivityEvents } from "@/mocks/data";
+import type { AccessEvent, AttendanceSummary } from "@/types";
 
 export default function StudentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummary | null>(null);
+  const [recentAccess, setRecentAccess] = useState<AccessEvent[]>([]);
+  const [widgetLoading, setWidgetLoading] = useState(true);
+  const [widgetError, setWidgetError] = useState<string | null>(null);
   const recentAlerts = mockAlerts.filter(a => a.status === "unread").slice(0, 3);
-  const recentAccess = mockAccessEvents.filter(e => e.studentId === "stu-001").slice(0, 2);
   const recentActivity = mockActivityEvents.filter(e => e.userId === "stu-001").slice(0, 5);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDashboardData() {
+      try {
+        setWidgetLoading(true);
+        setWidgetError(null);
+        const [attendance, access] = await Promise.all([
+          attendanceApi.getMine(),
+          accessApi.getMine(),
+        ]);
+
+        if (cancelled) return;
+
+        setAttendanceSummary(attendance.summary);
+        setRecentAccess(access.events.slice(0, 2));
+      } catch (error) {
+        if (!cancelled) {
+          setWidgetError(error instanceof Error ? error.message : "Failed to load dashboard activity.");
+        }
+      } finally {
+        if (!cancelled) {
+          setWidgetLoading(false);
+        }
+      }
+    }
+
+    void loadDashboardData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
       <PageHeader title={`Welcome back, ${getDisplayName(user).split(" ")[0] || "Student"}`} description="Here's an overview of your campus activity and status." />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Attendance Rate" value={`${mockAttendanceSummary.percentage}%`} subtitle={`${mockAttendanceSummary.present} of ${mockAttendanceSummary.totalDays} days`} icon={CalendarCheck} trend={{ value: 2.3, label: "vs last month" }} />
+        <StatCard title="Attendance Rate" value={attendanceSummary ? `${attendanceSummary.percentage}%` : widgetLoading ? "..." : "0%"} subtitle={attendanceSummary ? `${attendanceSummary.present + attendanceSummary.late + attendanceSummary.excused} of ${attendanceSummary.totalDays} sessions on record` : "Live attendance history"} icon={CalendarCheck} />
         <StatCard title="Access Status" value="Active" subtitle="All gates accessible" icon={DoorOpen} />
         <StatCard title="Unread Alerts" value={recentAlerts.length} subtitle="Requires attention" icon={AlertTriangle} />
         <StatCard title="Active Device" value={mockSession.deviceName} subtitle={mockSession.deviceType} icon={Smartphone} />
@@ -56,14 +97,21 @@ export default function StudentDashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <SectionCard title="Last Access Events">
-          <div className="space-y-2">
-            {recentAccess.map(evt => (
-              <div key={evt.id} className="flex items-center justify-between text-sm">
-                <span>{evt.checkpoint}</span>
-                <StatusBadge variant={evt.status}>{evt.status}</StatusBadge>
-              </div>
-            ))}
-          </div>
+          {widgetError ? (
+            <ErrorState message={widgetError} />
+          ) : widgetLoading ? (
+            <LoadingState className="min-h-[120px]" />
+          ) : (
+            <div className="space-y-2">
+              {recentAccess.map(evt => (
+                <div key={evt.id} className="flex items-center justify-between text-sm">
+                  <span>{evt.checkpoint}</span>
+                  <StatusBadge variant={evt.status}>{evt.status}</StatusBadge>
+                </div>
+              ))}
+              {recentAccess.length === 0 && <p className="text-sm text-muted-foreground">No access events available.</p>}
+            </div>
+          )}
         </SectionCard>
 
         <SectionCard title="Session Info">

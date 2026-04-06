@@ -70,6 +70,15 @@ function assertCanReadUser(request: FastifyRequest, requestedUserId: string): st
 }
 
 export class PresenceController {
+  static async getPresenceOverview(request: FastifyRequest, reply: FastifyReply) {
+    if (!isPrivileged(request)) {
+      throw new AppError('FORBIDDEN', 403, 'Admin or security access required');
+    }
+
+    const overview = await presenceService.getPresenceOverview();
+    return reply.code(200).send(overview);
+  }
+
   static async updateLocation(request: FastifyRequest, reply: FastifyReply) {
     const body = locationBodySchema.parse(request.body);
     const userId = resolveBodyUserId(request, body.userId);

@@ -5,6 +5,8 @@ import * as mock from "@/mocks/data";
 const USE_MOCK = true;
 const USE_MOCK_STUDENT_LOOKUP = false;
 const USE_MOCK_ACCESS = false;
+const USE_MOCK_ATTENDANCE = false;
+const USE_MOCK_PRESENCE = false;
 const delay = (ms = 500) => new Promise((r) => setTimeout(r, ms));
 
 type BackendStudent = {
@@ -39,9 +41,26 @@ type BackendAttendanceRecord = {
   courseCode: string;
   courseTitle: string;
   room: string;
+  classSessionTemplateId: string;
   scheduledDate: string;
   timestamp: string;
   status: string;
+  method: string;
+  geofenceValidated: boolean;
+};
+
+type BackendAttendanceListResponse = {
+  data: BackendAttendanceRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+type AttendanceManualMarkInput = {
+  studentAccountId: string;
+  classSessionTemplateId: string;
+  scheduledDate: string;
+  status: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
 };
 
 type BackendAccessHistory = {
@@ -87,6 +106,59 @@ type AccessCheckInput = {
   credentialValue?: string;
 };
 
+type BackendPresenceOverview = {
+  records: Array<{
+    id: string;
+    studentId: string;
+    rollNumber: string;
+    studentName: string;
+    email: string;
+    accountStatus: string;
+    status: "active" | "inactive" | "missing";
+    checkpoint: string;
+    timestamp: string | null;
+    lat: number | null;
+    lng: number | null;
+  }>;
+  geofences: Array<{
+    id: string;
+    name: string;
+    type: string;
+    lat: number;
+    lng: number;
+    radius: number | null;
+  }>;
+};
+
+type BackendPresenceSummary = {
+  studentId: string;
+  isPresent: boolean;
+  lastSeen: string | null;
+};
+
+type BackendPresenceTrail = {
+  studentId: string;
+  trail: Array<{
+    checkpoint: string;
+    timestamp: string;
+    duration?: number;
+    lat?: number;
+    lng?: number;
+  }>;
+};
+
+export type PresenceOverview = {
+  records: PresenceRecord[];
+  geofences: Array<{
+    id: string;
+    name: string;
+    type: string;
+    lat: number;
+    lng: number;
+    radius: number | null;
+  }>;
+};
+
 function mapBackendStudent(student: BackendStudent): User {
   return {
     id: student.id,
@@ -116,17 +188,53 @@ function mapBackendStudentProfile(profile: BackendStudentProfile): User {
 function mapBackendAttendanceRecord(record: BackendAttendanceRecord): AttendanceRecord {
   const scheduledDate = new Date(record.scheduledDate).toISOString().split("T")[0];
   const timestamp = new Date(record.timestamp);
+  const normalizedStatus = record.status.toLowerCase() as AttendanceRecord["status"];
+  const isFlagged = normalizedStatus === "late" || normalizedStatus === "absent";
+
+  const anomalyType = normalizedStatus === "excused"
+    ? undefined
+    : !record.geofenceValidated
+    ? "Geofence validation failed"
+    : normalizedStatus === "late"
+      ? "Late arrival"
+      : normalizedStatus === "absent"
+        ? "Absence requires review"
+        : undefined;
 
   return {
     id: record.id,
     studentId: record.accountId,
     studentName: record.studentName,
+    rollNumber: record.rollNumber,
+    classSessionTemplateId: record.classSessionTemplateId,
     date: scheduledDate,
-    status: record.status.toLowerCase() as AttendanceRecord["status"],
+    status: normalizedStatus,
     checkIn: timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     course: `${record.courseCode} - ${record.courseTitle}`,
     location: record.room,
+    method: record.method,
+    geofenceValidated: record.geofenceValidated,
+    flagged: isFlagged,
+    anomalyType,
   };
+}
+
+function buildAttendanceSummary(records: AttendanceRecord[]): AttendanceSummary {
+  const summary = records.reduce(
+    (acc, record) => {
+      acc.totalDays += 1;
+      if (record.status === "present") acc.present += 1;
+      if (record.status === "absent") acc.absent += 1;
+      if (record.status === "late") acc.late += 1;
+      if (record.status === "excused") acc.excused += 1;
+      return acc;
+    },
+    { totalDays: 0, present: 0, absent: 0, late: 0, excused: 0, percentage: 0 }
+  );
+
+  const attended = summary.present + summary.late + summary.excused;
+  summary.percentage = summary.totalDays === 0 ? 0 : Number(((attended / summary.totalDays) * 100).toFixed(1));
+  return summary;
 }
 
 function humanizeAccessReason(reason: string): string {
@@ -165,6 +273,20 @@ function mapBackendAccessHistory(response: BackendAccessHistory): AccessEvent[] 
     method: event.reason ?? "System Rule",
     direction: event.action === "EXIT" ? "out" : "in",
   }));
+}
+
+function mapBackendPresenceRecord(record: BackendPresenceOverview["records"][number]): PresenceRecord {
+  return {
+    id: record.id,
+    studentId: record.studentId,
+    studentName: record.studentName,
+    rollNumber: record.rollNumber,
+    checkpoint: record.checkpoint,
+    timestamp: record.timestamp ?? new Date(0).toISOString(),
+    status: record.status,
+    lat: record.lat,
+    lng: record.lng,
+  };
 }
 
 export const studentsApi = {
@@ -208,16 +330,44 @@ export const studentsApi = {
 
 export const attendanceApi = {
   async getAll(params?: Record<string, string>): Promise<PaginatedResponse<AttendanceRecord>> {
-    if (USE_MOCK) { await delay(); return { data: mock.mockAttendanceRecords, total: mock.mockAttendanceRecords.length, page: 1, pageSize: 20, totalPages: 1 }; }
-    return apiGet("/attendance", params);
+    if (USE_MOCK_ATTENDANCE) { await delay(); return { data: mock.mockAttendanceRecords, total: mock.mockAttendanceRecords.length, page: 1, pageSize: 20, totalPages: 1 }; }
+    const response = await apiGet<BackendAttendanceListResponse>("/attendance/records", params);
+    return {
+      data: response.data.map(mapBackendAttendanceRecord),
+      total: response.total,
+      page: response.page,
+      pageSize: response.pageSize,
+      totalPages: response.total === 0 ? 0 : Math.ceil(response.total / response.pageSize),
+    };
   },
   async getMine(): Promise<{ summary: AttendanceSummary; records: AttendanceRecord[] }> {
-    if (USE_MOCK) { await delay(); return { summary: mock.mockAttendanceSummary, records: mock.mockAttendanceRecords.filter(r => r.studentId === "stu-001") }; }
-    return apiGet("/attendance/me");
+    if (USE_MOCK_ATTENDANCE) { await delay(); return { summary: mock.mockAttendanceSummary, records: mock.mockAttendanceRecords.filter(r => r.studentId === "stu-001") }; }
+    const response = await apiGet<BackendAttendanceListResponse>("/attendance/me", { page: "1", pageSize: "100" });
+    const records = response.data.map(mapBackendAttendanceRecord);
+    return {
+      summary: buildAttendanceSummary(records),
+      records,
+    };
   },
   async getAnomalies(): Promise<AttendanceRecord[]> {
-    if (USE_MOCK) { await delay(); return mock.mockAttendanceRecords.filter(r => r.flagged); }
-    return apiGet("/attendance/anomalies");
+    if (USE_MOCK_ATTENDANCE) { await delay(); return mock.mockAttendanceRecords.filter(r => r.flagged); }
+    const response = await apiGet<BackendAttendanceListResponse>("/attendance/records", { page: "1", pageSize: "100" });
+    return response.data.map(mapBackendAttendanceRecord).filter((record) => record.flagged);
+  },
+  async markManual(body: AttendanceManualMarkInput): Promise<AttendanceRecord> {
+    if (USE_MOCK_ATTENDANCE) {
+      await delay();
+      return {
+        ...mock.mockAttendanceRecords[0],
+        studentId: body.studentAccountId,
+        classSessionTemplateId: body.classSessionTemplateId,
+        date: body.scheduledDate,
+        status: body.status.toLowerCase() as AttendanceRecord["status"],
+      };
+    }
+
+    const response = await apiPost<{ attendance: BackendAttendanceRecord }>("/attendance/faculty/mark", body);
+    return mapBackendAttendanceRecord(response.attendance);
   },
 };
 
@@ -309,17 +459,60 @@ export const alertsApi = {
 };
 
 export const presenceApi = {
-  async getAll(): Promise<PresenceRecord[]> {
-    if (USE_MOCK) { await delay(); return mock.mockPresenceRecords; }
-    return apiGet("/presence");
+  async getOverview(): Promise<PresenceOverview> {
+    if (USE_MOCK_PRESENCE) {
+      await delay();
+      return {
+        records: mock.mockPresenceRecords,
+        geofences: [],
+      };
+    }
+
+    const response = await apiGet<BackendPresenceOverview>("/presence/overview");
+    return {
+      records: response.records.map(mapBackendPresenceRecord),
+      geofences: response.geofences,
+    };
   },
-  async getByStudent(studentId: string): Promise<PresenceRecord[]> {
-    if (USE_MOCK) { await delay(); return mock.mockPresenceRecords.filter(p => p.studentId === studentId); }
-    return apiGet(`/presence/${studentId}`);
+  async getByStudent(studentId: string): Promise<PresenceRecord> {
+    if (USE_MOCK_PRESENCE) {
+      await delay();
+      return mock.mockPresenceRecords.find((record) => record.studentId === studentId) || mock.mockPresenceRecords[0];
+    }
+
+    const [summary, overview] = await Promise.all([
+      apiGet<BackendPresenceSummary>(`/presence/${studentId}`),
+      apiGet<BackendPresenceOverview>("/presence/overview"),
+    ]);
+
+    const current = overview.records.find((record) => record.studentId === studentId);
+    return current
+      ? mapBackendPresenceRecord(current)
+      : {
+          id: studentId,
+          studentId,
+          checkpoint: "No recent signal",
+          timestamp: summary.lastSeen ?? new Date(0).toISOString(),
+          status: summary.isPresent ? "active" : "missing",
+        };
   },
   async getTrace(studentId: string): Promise<TracePoint[]> {
-    if (USE_MOCK) { await delay(); return mock.mockTracePoints; }
-    return apiGet(`/presence/${studentId}/trace`);
+    if (USE_MOCK_PRESENCE) { await delay(); return mock.mockTracePoints; }
+    const response = await apiGet<BackendPresenceTrail>(`/presence/${studentId}/trail`);
+    return response.trail;
+  },
+  async updateLocation(studentId: string, body: { lat: number; lng: number; timestamp?: number }): Promise<void> {
+    if (USE_MOCK_PRESENCE) {
+      await delay();
+      return;
+    }
+
+    await apiPost("/presence/update-location", {
+      userId: studentId,
+      lat: body.lat,
+      lng: body.lng,
+      timestamp: body.timestamp ?? Date.now(),
+    });
   },
 };
 

@@ -9,14 +9,15 @@ import { Users, AlertTriangle, DoorOpen, CalendarCheck, ShieldAlert, Activity } 
 import { getDisplayName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { accessApi } from "@/services/dataApi";
-import { mockStudents, mockAlerts, mockIncidents, mockAttendanceRecords, mockActivityEvents } from "@/mocks/data";
-import type { AccessEvent } from "@/types";
+import { attendanceApi, accessApi } from "@/services/dataApi";
+import { mockStudents, mockAlerts, mockIncidents, mockActivityEvents } from "@/mocks/data";
+import type { AccessEvent, AttendanceRecord } from "@/types";
 
 export default function AdminDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [accessEvents, setAccessEvents] = useState<AccessEvent[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [accessLoading, setAccessLoading] = useState(true);
   const [accessError, setAccessError] = useState<string | null>(null);
 
@@ -27,13 +28,17 @@ export default function AdminDashboard() {
       try {
         setAccessLoading(true);
         setAccessError(null);
-        const response = await accessApi.getAll({ page: "1", pageSize: "10" });
+        const [accessResponse, attendanceResponse] = await Promise.all([
+          accessApi.getAll({ page: "1", pageSize: "10" }),
+          attendanceApi.getAll({ page: "1", pageSize: "20" }),
+        ]);
         if (!cancelled) {
-          setAccessEvents(response.data);
+          setAccessEvents(accessResponse.data);
+          setAttendanceRecords(attendanceResponse.data);
         }
       } catch (loadError) {
         if (!cancelled) {
-          setAccessError(loadError instanceof Error ? loadError.message : "Failed to load access overview.");
+          setAccessError(loadError instanceof Error ? loadError.message : "Failed to load operations overview.");
         }
       } finally {
         if (!cancelled) {
@@ -52,7 +57,7 @@ export default function AdminDashboard() {
   const activeStudents = mockStudents.filter(s => s.status === "active").length;
   const alertsToday = mockAlerts.filter(a => a.status === "unread").length;
   const deniedAccess = accessEvents.filter(e => e.status === "denied").length;
-  const anomalies = mockAttendanceRecords.filter(r => r.flagged).length;
+  const anomalies = attendanceRecords.filter(r => r.flagged).length;
   const openIncidents = mockIncidents.filter(i => i.status !== "resolved" && i.status !== "closed").length;
 
   return (
@@ -114,17 +119,24 @@ export default function AdminDashboard() {
         </SectionCard>
 
         <SectionCard title="Attendance Anomalies">
-          <div className="space-y-2">
-            {mockAttendanceRecords.filter(r => r.flagged).map(rec => (
-              <div key={rec.id} className="flex items-center justify-between text-sm py-2 border-b last:border-0">
-                <div>
-                  <p className="font-medium">{rec.studentName}</p>
-                  <p className="text-xs text-muted-foreground">{rec.anomalyType} • {rec.date}</p>
+          {accessError ? (
+            <ErrorState message={accessError} />
+          ) : accessLoading ? (
+            <LoadingState className="min-h-[200px]" />
+          ) : (
+            <div className="space-y-2">
+              {attendanceRecords.filter(r => r.flagged).map(rec => (
+                <div key={rec.id} className="flex items-center justify-between text-sm py-2 border-b last:border-0">
+                  <div>
+                    <p className="font-medium">{rec.studentName}</p>
+                    <p className="text-xs text-muted-foreground">{rec.anomalyType} • {rec.date}</p>
+                  </div>
+                  <StatusBadge variant={getStatusVariant(rec.status)}>{rec.status}</StatusBadge>
                 </div>
-                <StatusBadge variant={getStatusVariant(rec.status)}>{rec.status}</StatusBadge>
-              </div>
-            ))}
-          </div>
+              ))}
+              {attendanceRecords.filter(r => r.flagged).length === 0 && <p className="text-sm text-muted-foreground">No flagged attendance records right now.</p>}
+            </div>
+          )}
         </SectionCard>
       </div>
 

@@ -12,6 +12,8 @@ import bcrypt from 'bcrypt';
 export async function seedDemoDatabase(prisma: PrismaClient): Promise<void> {
   console.log('🌱 Starting database seed...');
 
+  await prisma.bleDetection.deleteMany();
+  await prisma.presenceLocation.deleteMany();
   await prisma.accessEvent.deleteMany();
   await prisma.attendanceRecord.deleteMany();
   await prisma.studentGroupMembership.deleteMany();
@@ -96,6 +98,40 @@ export async function seedDemoDatabase(prisma: PrismaClient): Promise<void> {
           firstName: 'Priya',
           lastName: 'Nair',
           rfidTag: 'RFID_D_004',
+        },
+      },
+    },
+  });
+
+  const meera = await prisma.account.create({
+    data: {
+      rollNumber: 'CS21005',
+      email: 'cs21005@campus.edu',
+      password: commonPassword,
+      status: AccountStatus.ACTIVE,
+      role: UserRole.STUDENT,
+      profile: {
+        create: {
+          firstName: 'Meera',
+          lastName: 'Joshi',
+          rfidTag: 'RFID_E_005',
+        },
+      },
+    },
+  });
+
+  const kabir = await prisma.account.create({
+    data: {
+      rollNumber: 'CS21006',
+      email: 'cs21006@campus.edu',
+      password: commonPassword,
+      status: AccountStatus.ACTIVE,
+      role: UserRole.STUDENT,
+      profile: {
+        create: {
+          firstName: 'Kabir',
+          lastName: 'Malhotra',
+          rfidTag: 'RFID_F_006',
         },
       },
     },
@@ -277,6 +313,8 @@ export async function seedDemoDatabase(prisma: PrismaClient): Promise<void> {
       { groupId: groupA1.id, accountId: anjali.id },
       { groupId: groupA1.id, accountId: rohan.id },
       { groupId: groupA2.id, accountId: priya.id },
+      { groupId: groupA2.id, accountId: meera.id },
+      { groupId: groupA1.id, accountId: kabir.id },
     ],
   });
 
@@ -436,6 +474,111 @@ export async function seedDemoDatabase(prisma: PrismaClient): Promise<void> {
         action: AccessAction.DENIED,
         reason: AccessReason.INACTIVE_ACCOUNT,
         timestamp: new Date('2026-04-06T08:35:00Z'),
+      },
+    ],
+  });
+
+  console.log('Creating presence history...');
+
+  const now = Date.now();
+
+  await prisma.presenceLocation.createMany({
+    data: [
+      {
+        accountId: anjali.id,
+        latitude: 28.40882,
+        longitude: 77.31774,
+        recordedAt: new Date(now - 70 * 60 * 1000),
+      },
+      {
+        accountId: anjali.id,
+        latitude: 28.40898,
+        longitude: 77.31796,
+        recordedAt: new Date(now - 45 * 60 * 1000),
+      },
+      {
+        accountId: anjali.id,
+        latitude: 28.40918,
+        longitude: 77.31818,
+        recordedAt: new Date(now - 26 * 60 * 1000),
+      },
+      {
+        accountId: anjali.id,
+        latitude: 28.40934,
+        longitude: 77.31854,
+        recordedAt: new Date(now - 8 * 60 * 1000),
+      },
+      {
+        accountId: rohan.id,
+        latitude: 28.40806,
+        longitude: 77.31682,
+        recordedAt: new Date(now - 55 * 60 * 1000),
+      },
+      {
+        accountId: rohan.id,
+        latitude: 28.40825,
+        longitude: 77.31715,
+        recordedAt: new Date(now - 28 * 60 * 1000),
+      },
+      {
+        accountId: rohan.id,
+        latitude: 28.40814,
+        longitude: 77.31693,
+        recordedAt: new Date(now - 11 * 60 * 1000),
+      },
+      {
+        accountId: priya.id,
+        latitude: 28.40835,
+        longitude: 77.31712,
+        recordedAt: new Date(now - 60 * 60 * 1000),
+      },
+      {
+        accountId: priya.id,
+        latitude: 28.40892,
+        longitude: 77.31785,
+        recordedAt: new Date(now - 24 * 60 * 1000),
+      },
+      {
+        accountId: priya.id,
+        latitude: 28.40902,
+        longitude: 77.31803,
+        recordedAt: new Date(now - 18 * 60 * 1000),
+      },
+      {
+        accountId: meera.id,
+        latitude: 28.40888,
+        longitude: 77.31772,
+        recordedAt: new Date(now - 90 * 60 * 1000),
+      },
+      {
+        accountId: meera.id,
+        latitude: 28.40901,
+        longitude: 77.31809,
+        recordedAt: new Date(now - 42 * 60 * 1000),
+      },
+      {
+        accountId: meera.id,
+        latitude: 28.40926,
+        longitude: 77.31827,
+        recordedAt: new Date(now - 14 * 60 * 1000),
+      },
+      {
+        accountId: kabir.id,
+        latitude: 28.40862,
+        longitude: 77.31722,
+        recordedAt: new Date(now - 105 * 60 * 1000),
+      },
+      {
+        accountId: kabir.id,
+        latitude: 28.40936,
+        longitude: 77.31858,
+        recordedAt: new Date(now - 48 * 60 * 1000),
+      },
+      {
+        accountId: kabir.id,
+        latitude: 28.40917,
+        longitude: 77.31834,
+        recordedAt: new Date(now - 22 * 60 * 1000),
       },
     ],
   });

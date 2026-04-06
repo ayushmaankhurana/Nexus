@@ -5,6 +5,9 @@ import {
   GeofenceCheckRequest,
   GeofenceCheckResponse,
   Location,
+  PresenceOverviewGeofence,
+  PresenceOverviewRecord,
+  PresenceOverviewResponse,
   PresenceSummary,
   PresenceTrailEntry,
 } from './model';
@@ -146,7 +149,58 @@ export class PresenceService {
       checkpoint:
         location.geofenceName ?? `Lat ${location.lat.toFixed(4)}, Lng ${location.lng.toFixed(4)}`,
       timestamp: new Date(location.timestamp).toISOString(),
+      lat: location.lat,
+      lng: location.lng,
     }));
+  }
+
+  async getPresenceOverview(): Promise<PresenceOverviewResponse> {
+    const [students, geofences] = await Promise.all([
+      this.store.listStudentPresenceOverview(),
+      this.getActiveGeofenceCircles(),
+    ]);
+
+    const records: PresenceOverviewRecord[] = students.map((student) => {
+      const latestLocation = student.latestLocation
+        ? {
+            lat: student.latestLocation.latitude,
+            lng: student.latestLocation.longitude,
+            timestamp: student.latestLocation.recordedAt.getTime(),
+          }
+        : null;
+
+      const matchedGeofence = latestLocation ? findContainingGeofence(latestLocation, geofences) : null;
+      const fullName = `${student.firstName} ${student.lastName}`.trim() || student.rollNumber;
+      const freshnessMs = latestLocation ? Date.now() - latestLocation.timestamp : null;
+
+      return {
+        id: student.latestLocation?.id ?? student.id,
+        studentId: student.id,
+        rollNumber: student.rollNumber,
+        studentName: fullName,
+        email: student.email,
+        accountStatus: student.status,
+        status: latestLocation === null ? 'missing' : freshnessMs !== null && freshnessMs <= PRESENCE_FRESHNESS_MS ? 'active' : 'inactive',
+        checkpoint: matchedGeofence?.name ?? (latestLocation ? 'Off-grid location' : 'No recent signal'),
+        timestamp: latestLocation ? new Date(latestLocation.timestamp).toISOString() : null,
+        lat: latestLocation?.lat ?? null,
+        lng: latestLocation?.lng ?? null,
+      };
+    });
+
+    const mapGeofences: PresenceOverviewGeofence[] = geofences.map((geofence) => ({
+      id: geofence.id,
+      name: geofence.name,
+      type: geofence.type,
+      lat: geofence.lat,
+      lng: geofence.lng,
+      radius: geofence.radius,
+    }));
+
+    return {
+      records,
+      geofences: mapGeofences,
+    };
   }
 
   /**

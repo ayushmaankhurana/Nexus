@@ -39,4 +39,34 @@ export interface PresenceTrailEntry {
   checkpoint: string;
   timestamp: string;
   duration?: number;
+  lat?: number;
+  lng?: number;
+}
+
+export interface PresenceOverviewGeofence {
+  id: string;
+  name: string;
+  type: string;
+  lat: number;
+  lng: number;
+  radius: number | null;
+}
+
+export interface PresenceOverviewRecord {
+  id: string;
+  studentId: string;
+  rollNumber: string;
+  studentName: string;
+  email: string;
+  accountStatus: string;
+  status: 'active' | 'inactive' | 'missing';
+  checkpoint: string;
+  timestamp: string | null;
+  lat: number | null;
+  lng: number | null;
+}
+
+export interface PresenceOverviewResponse {
+  records: PresenceOverviewRecord[];
+  geofences: PresenceOverviewGeofence[];
 }

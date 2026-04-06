@@ -2,6 +2,12 @@ import { FastifyPluginAsync } from 'fastify';
 import { PresenceController } from '../services/presence/controller';
 
 const presence: FastifyPluginAsync = async (fastify) => {
+  fastify.get(
+    '/presence/overview',
+    { onRequest: [fastify.authenticate] },
+    PresenceController.getPresenceOverview
+  );
+
   // Legacy contract kept as the primary API surface.
   fastify.get<{ Params: { studentId: string } }>(
     '/presence/:studentId',

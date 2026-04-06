@@ -60,12 +60,16 @@ export interface AttendanceRecord {
   id: string;
   studentId: string;
   studentName?: string;
+  rollNumber?: string;
+  classSessionTemplateId?: string;
   date: string;
   status: "present" | "absent" | "late" | "excused";
   checkIn?: string;
   checkOut?: string;
   course?: string;
   location?: string;
+  method?: string;
+  geofenceValidated?: boolean;
   flagged?: boolean;
   anomalyType?: string;
 }
@@ -147,16 +151,21 @@ export interface PresenceRecord {
   id: string;
   studentId: string;
   studentName?: string;
+  rollNumber?: string;
   checkpoint: string;
   timestamp: string;
   signalStrength?: number;
   status: "active" | "inactive" | "missing";
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface TracePoint {
   checkpoint: string;
   timestamp: string;
   duration?: number;
+  lat?: number;
+  lng?: number;
 }
 
 export interface SupportIssue {
