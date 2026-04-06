@@ -119,3 +119,551 @@ Estimated completion: about 32% overall. Backend is about 45% complete because i
 About 32% is truly done. The part that is genuinely complete is the identity core: Prisma-backed accounts, sessions, one-device binding, password reset, profile fetch, and a basic admin create-student flow. The rest of the repo is mostly a combination of schema groundwork, seeded sample data, route placeholders, and UI scaffolding.
 
 What is left are the major product slices that actually make Nexus "Nexus": timetable and faculty ownership, real attendance validation, real access decisioning, presence ingestion and state, incidents and alerts lifecycle, frontend integration, notifications/realtime, reliability scoring, and the mobile app. The repo is dev-ready for auth and schema-driven backend work, but as a product it is still foundational, not demo-ready beyond auth/admin provisioning and mock-backed dashboard walkthroughs.
+
+
+
+
+## **NEXT STEPS**
+
+1) Clean up and lock identity (1–2 focused sessions)
+Goal: make auth/admin “boringly correct” so nobody breaks it later.
+
+Concrete steps:
+
+Fix the small technical debts you already know about:
+
+Ensure switchDevice uses the same 7‑day expiry as createSession so refresh works consistently.
+
+Remove dead/commented auth code (deprecated auth.ts, old mock store blocks).
+
+Stop returning/logging activation/reset tokens in responses except where explicitly dev-only.
+
+Normalize roles end-to-end:
+
+Decide: roles in JWT are STUDENT/ADMIN/SECURITY (uppercase enum) or lowercased.
+
+Make backend routes compare in one way (e.g. always role.toUpperCase()).
+
+Make frontend expect exactly that casing.
+
+Align error envelopes:
+
+Backend sends { error: { code, message } }.
+
+Frontend API client should unwrap and display error.message correctly.
+
+This gives everyone a stable “identity spine” they can safely build on.
+
+2) Define and model timetable & class sessions (big design step)
+This is the real blocker for meaningful attendance. Do this before touching attendance routes.
+
+Design and implement in Prisma:
+
+Course (e.g. CS101).
+
+Section (CS101-A, CS101-B).
+
+Group (CS101-A1, CS101-A2 if you need sub-groups).
+
+ClassSessionTemplate (recurring pattern: course, section/group, day-of-week, start/end time, room).
+
+Optionally ClassSessionInstance (actual dated instances, if you want explicit rows per day).
+
+Also:
+
+Map students to groups.
+
+Map faculty to sections/groups they teach.
+
+Once this is in schema.prisma and migrated, you can:
+
+Know which class is happening now for a given student/faculty.
+
+Attach attendance records to session IDs, not just raw classId: string.
+
+You don’t have to perfect it, but get a v0 schema in place.
+
+3) Introduce FACULTY role and basic faculty ownership
+After timetable:
+
+Extend UserRole enum with FACULTY and migrate.
+
+Create a simple mapping:
+
+FacultyAccount -> teaches [Section/Group].
+
+Add minimal routes:
+
+Faculty can list their current/next sessions.
+
+Faculty can view attendance for their own sessions only.
+
+You can skip UI for now; this is about backend contract.
+
+
+Plan: Identity Spine, Timetable v0, Faculty Backend
+Recommended sequence: stabilize identity first, then add timetable primitives in Prisma, then layer FACULTY ownership and faculty-only backend endpoints on top. That keeps the risky auth/contract changes isolated before you expand the schema.
+
+1. Lock identity first
+Make role casing canonical as uppercase everywhere that crosses service boundaries.
+Files:
+index.ts:12
+prisma-auth-store.ts:28
+fastify.d.ts:17
+index.ts:1
+
+Snippet direction:
+role: "student" | "security" | "admin"
+->
+role: "STUDENT" | "SECURITY" | "ADMIN"
+
+Why:
+Prisma already uses uppercase enum values, so this removes the current DB/backend/frontend mismatch instead of constantly converting.
+
+Stop lowercasing roles inside the Prisma auth store.
+File:
+prisma-auth-store.ts:37
+
+Snippet direction:
+role: createdAccount.role.toLowerCase()
+->
+role: createdAccount.role
+
+And:
+role: account.role.toLowerCase()
+->
+role: account.role
+
+Also keep status lowercased only if you want that as an API convention. If not, normalize it consistently too.
+
+Make session expiry a shared constant and use it in both session creation paths.
+File:
+prisma-auth-store.ts:92
+
+Snippet direction:
+const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+->
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
+const expiresAt = new Date(Date.now() + SESSION_TTL_MS)
+
+Apply it in both:
+prisma-auth-store.ts:92
+prisma-auth-store.ts:181
+
+Why:
+Today both already use 7 days, but duplicating the literal is how this drifts later.
+
+Keep JWT payloads and auth responses on the same canonical role shape.
+File:
+auth-service.ts:51
+
+Snippet direction:
+const payload = { sub: account.studentId, deviceId, role: account.role }
+
+Keep that shape for:
+login
+deviceSwitch
+refresh
+
+Also remove the debug log:
+console.log("DATABASE HANDED ME THIS ROLE:", account.role)
+
+Normalize all backend role checks to one convention.
+Files:
+attendance.ts:11
+admin-students.ts
+students.ts
+
+Minimum safe change:
+user.role !== "admin"
+->
+user.role.toUpperCase() !== "ADMIN"
+
+Better long-term pattern:
+add one helper like isRole(user.role, "ADMIN") or hasAnyRole(user.role, ["ADMIN", "SECURITY"]) and reuse it across route files.
+
+Stop exposing reset tokens unless explicitly dev-only.
+File:
+auth.ts:95
+
+Snippet direction:
+console.log(Token: ${resetToken})
+return { message: "...", resetToken }
+->
+return { message: "If an account exists for this identifier, a reset token has been generated." }
+
+Optional dev-only version:
+if process.env.EXPOSE_DEV_TOKENS === "true", include a devOnly.resetToken field.
+Otherwise do not log or return it.
+
+Fix frontend role expectations to match uppercase roles.
+Files:
+index.ts:1
+App.tsx:37
+ProtectedRoute.tsx:17
+AppSidebar.tsx:46
+AppHeader.tsx:57
+
+Snippet direction:
+allowedRoles={["student"]}
+->
+allowedRoles={["STUDENT"]}
+
+user.role === "admin"
+->
+user.role === "ADMIN"
+
+Fix frontend error envelope unwrapping.
+File:
+apiClient.ts:37
+
+Snippet direction:
+errorBody = await response.json()
+throw new ApiHttpError(errorBody, response.status)
+->
+const envelope = await response.json()
+const errorBody = envelope.error ?? envelope
+throw new ApiHttpError(errorBody, response.status)
+
+Why:
+Your backend already sends:
+{ error: { code, message } }
+but the frontend currently expects:
+{ code, message }
+
+Keep auth response normalization, but do not silently lowercase roles anymore.
+File:
+authApi.ts:10
+
+Plan:
+preserve uppercase role values in normalizeAuthResponse
+update mock users too if you still rely on mock mode, otherwise your manual UI tests will lie to you
+
+2. Add timetable v0 in Prisma before real attendance work
+Extend the Prisma schema with timetable primitives.
+File:
+schema.prisma
+Add these models:
+Course
+Section
+StudentGroup
+StudentGroupMembership
+FacultyProfile
+FacultyAssignment
+ClassSessionTemplate
+
+Recommended v0 fields:
+Course: id, code, title, department, credits
+Section: id, courseId, code, term, year
+StudentGroup: id, sectionId, code, name
+StudentGroupMembership: id, groupId, studentAccountId
+FacultyProfile: id, accountId, firstName, lastName, department, title
+FacultyAssignment: id, facultyAccountId, sectionId nullable, groupId nullable
+ClassSessionTemplate: id, sectionId, groupId nullable, facultyAccountId nullable, dayOfWeek, startTime, endTime, room, geofenceId nullable
+
+Add FACULTY to the Prisma role enum in the same migration batch.
+File:
+schema.prisma:9
+Snippet direction:
+enum UserRole {
+STUDENT
+ADMIN
+SECURITY
+}
+->
+enum UserRole {
+STUDENT
+ADMIN
+SECURITY
+FACULTY
+}
+
+Why:
+Do this together with faculty data structures so role expansion is not dangling.
+
+Replace raw classId on attendance with timetable-backed keys.
+File:
+schema.prisma:56
+Because you chose templates only for v0, the cleanest temporary shape is:
+classSessionTemplateId
+scheduledDate
+relation to ClassSessionTemplate
+
+Snippet direction:
+classId String
+->
+classSessionTemplateId String
+scheduledDate DateTime
+
+This is the compromise that lets attendance stop pointing to arbitrary strings now, while deferring full dated ClassSessionInstance rows.
+
+Generate one Prisma migration for the timetable/faculty batch.
+Outputs:
+new migration under migrations
+Keep this migration focused:
+role enum expansion
+new timetable/faculty tables
+attendance foreign-key reshaping
+
+Update seed data so the new model is actually usable.
+File:
+seed.ts
+Add:
+one FACULTY account
+one course
+one section
+one or two groups
+student-group memberships
+faculty assignment
+class session templates
+attendance rows tied to classSessionTemplateId plus scheduledDate
+
+That gives you something real to test against immediately.
+
+3. Add faculty ownership and backend contract
+Extend shared types with FACULTY after the Prisma migration lands.
+File:
+index.ts:14
+Snippet direction:
+export type UserRole = "STUDENT" | "SECURITY" | "ADMIN"
+->
+export type UserRole = "STUDENT" | "SECURITY" | "ADMIN" | "FACULTY"
+
+Make sure the auth store and auth response path accept FACULTY without special handling.
+Files:
+prisma-auth-store.ts
+auth-service.ts
+fastify.d.ts
+Goal:
+login, refresh, and device switch should work for FACULTY exactly the same way they work for ADMIN or STUDENT.
+
+Add a new faculty route module under the existing routes directory.
+Recommended endpoints:
+GET /faculty/me/sessions/current-next
+GET /faculty/me/sessions/:sessionTemplateId/attendance
+Route behavior:
+current-next endpoint computes current and upcoming sessions from ClassSessionTemplate based on weekday and current time
+attendance endpoint first verifies the authenticated FACULTY owns the section/group through FacultyAssignment, then returns attendance only for owned sessions
+
+Register the faculty routes in the app.
+File:
+app.ts:3
+Keep:
+same authenticate middleware
+same error envelope
+same Fastify plugin pattern as the existing route files
+
+If the auth Zod schema is role-restricted anywhere, widen it.
+File:
+auth.ts
+Check:
+response user.role typing
+any enum literals
+any frontend-facing shape assumptions
+
+4. Leave attendance route logic until timetable is in place
+Do not rewrite the real attendance business logic until the timetable migration and seed are done.
+File to revisit later:
+attendance.ts
+Immediate change now:
+fix broken role checks
+
+Later change:
+query attendance using classSessionTemplateId plus scheduledDate instead of classId strings
+
+Relevant files
+schema.prisma
+seed.ts
+prisma-auth-store.ts
+auth-service.ts
+auth.ts
+attendance.ts
+app.ts
+auth.ts
+fastify.d.ts
+index.ts
+index.ts
+apiClient.ts
+authApi.ts
+App.tsx
+ProtectedRoute.tsx
+AppSidebar.tsx
+AppHeader.tsx
+
+Testing after implementation
+Identity regression on backend:
+exercise login, refresh, device switch, forgot-password, and reset-password from test.http or scratch.http
+verify refresh and switch both preserve the 7-day session expiry behavior
+verify forgot-password no longer logs or returns resetToken unless the explicit dev flag is enabled
+
+Error envelope regression on frontend:
+trigger invalid login
+trigger invalid activation token
+trigger expired reset token
+confirm the dashboard shows backend error.message correctly
+
+Role regression end-to-end:
+log in as STUDENT, ADMIN, SECURITY, and FACULTY
+confirm JWT payload role is uppercase
+confirm protected backend routes allow and deny correctly
+confirm frontend route guards and admin/sidebar logic still work with uppercase roles
+
+Prisma validation:
+run prisma format
+run prisma validate
+run prisma migrate dev
+run prisma generate
+run the seed script
+confirm the new course, section, group, faculty assignment, and class session template data exists
+
+Faculty contract validation:
+call GET /faculty/me/sessions/current-next with a seeded faculty account
+confirm only assigned sessions are returned
+call GET /faculty/me/sessions/:sessionTemplateId/attendance for both owned and unowned sessions
+confirm owned returns data and unowned returns 403
+
+Timetable integrity checks:
+verify you can answer all of these from the DB:
+which group a student belongs to
+which faculty teaches a given section or group
+which recurring session applies right now for a faculty member or student on a given weekday/time
+
+Two decisions are now locked into this plan: uppercase role casing, and templates-only for timetable v0. The one tradeoff to keep in mind is that without ClassSessionInstance, attendance should use classSessionTemplateId plus scheduledDate for now, then move to true instance IDs later if you need explicit per-day session rows.
+
+If you want, I can refine this one more step into a commit-by-commit plan so you can execute it in the cleanest order.
+
+## MORE INFO
+
+Start with identity cleanup, then move to Prisma, then faculty routes. You already have a good plan; here’s the **execution order** I’d follow from what you pasted.
+
+***
+
+## Step 1 — Identity spine (backend + frontend)
+
+Do this first, in small commits.
+
+1. **Canonicalize roles to uppercase across backend:**
+   - In `prisma-auth-store.ts`, stop lowercasing roles:
+     - `createdAccount.role.toLowerCase()` → `createdAccount.role`
+     - `account.role.toLowerCase()` → `account.role`
+   - In route files (`attendance.ts`, `admin-students.ts`, `students.ts`, etc.), change checks to:
+     - `user.role.toUpperCase() === "ADMIN"` style.
+   - Keep JWT payload as `{ sub, deviceId, role: account.role }` in `auth-service.ts` and remove the debug log.
+
+2. **Centralize session TTL:**
+   - In `prisma-auth-store.ts`, define:
+     - `const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;`
+   - Use it in both `createSession` and `switchDevice` when computing `expiresAt`.
+
+3. **Stop exposing reset tokens:**
+   - In `auth` plugin, remove dev logging and `resetToken` from the response.
+   - Optional: gate it behind `EXPOSE_DEV_TOKENS` if you really want a dev-only mode.
+
+4. **Align frontend role expectations:**
+   - In `Auth` types, `ProtectedRoute`, `App.tsx`, sidebar/header, etc., change:
+     - `"student" | "admin" | "security"` → `"STUDENT" | "ADMIN" | "SECURITY"`.
+   - Update `allowedRoles` arrays accordingly.
+
+5. **Fix frontend error envelope:**
+   - In `apiClient.ts`, unwrap `{ error: { code, message } }`:
+     - `const envelope = await response.json();`
+     - `const errorBody = envelope.error ?? envelope;`
+     - throw with `errorBody`.
+
+6. **Quick regression test:**
+   - Run through login, refresh, device switch, forgot/reset using your HTTP file.
+   - Trigger invalid login/activation/reset and confirm errors show correctly in the UI.
+
+***
+
+## Step 2 — Timetable v0 in Prisma
+
+Once identity is stable, do the timetable migration.
+
+1. **Extend `schema.prisma`:**
+   - Add:
+     - `Course`
+     - `Section`
+     - `StudentGroup`
+     - `StudentGroupMembership`
+     - `FacultyProfile`
+     - `FacultyAssignment`
+     - `ClassSessionTemplate`
+   - Add `FACULTY` to `UserRole`.
+
+2. **Change attendance to use timetable keys:**
+   - Replace `classId: String` in `AttendanceRecord` with:
+     - `classSessionTemplateId: String`
+     - `scheduledDate: DateTime`
+     - plus relation to `ClassSessionTemplate`.
+
+3. **Run Prisma commands:**
+   - `npx prisma format`
+   - `npx prisma migrate dev --name add_timetable_and_faculty`
+   - `npx prisma generate`
+
+4. **Update `seed.ts`:**
+   - Seed:
+     - 1–2 `Course`s
+     - 1–2 `Section`s
+     - 1–2 `StudentGroup`s
+     - memberships for your existing students
+     - a `FacultyProfile` + `FacultyAssignment`
+     - 2–3 `ClassSessionTemplate`s
+     - `AttendanceRecord` rows using `classSessionTemplateId + scheduledDate`.
+
+5. **Validate:**
+   - Run seed.
+   - Inspect DB to confirm you can answer:
+     - which group a student belongs to,
+     - which faculty teaches a section/group,
+     - which sessions exist for a given weekday/time.
+
+***
+
+## Step 3 — Faculty backend contract
+
+After timetable schema + seed:
+
+1. **Extend shared role types:**
+   - In your shared `index.ts` / core types, add `"FACULTY"` to `UserRole`.
+
+2. **Ensure auth supports FACULTY:**
+   - `prisma-auth-store.ts`, `auth-service.ts`, and `fastify.d.ts` should treat FACULTY exactly like other roles (no special-casing needed yet).
+
+3. **Add faculty routes:**
+   - Create `routes/faculty.ts` with endpoints like:
+     - `GET /faculty/me/sessions/current-next`
+     - `GET /faculty/me/sessions/:sessionTemplateId/attendance`
+   - Behavior:
+     - `current-next`: compute sessions from `ClassSessionTemplate` and time.
+     - `attendance`: verify the authenticated FACULTY is assigned to that section/group via `FacultyAssignment`; return attendance only if owned, else 403.
+
+4. **Register in `app.ts`:**
+   - `await app.register(facultyRoutes);`
+   - Reuse `authenticate` hook and existing error handler.
+
+5. **Sanity test:**
+   - Login as seeded faculty, call the new endpoints.
+   - Verify ownership checks work: owned → data, unowned → 403.
+
+***
+
+## Where to literally start right now
+
+If you sit down for your next session, I’d do:
+
+1. Identity cleanup commit:
+   - Role casing changes.
+   - Session TTL constant.
+   - Reset token exposure removed.
+   - Frontend role + error handling fixes.
+   - Build + quick regression tests.
+
+2. New branch / commit for **timetable v0**:
+   - Prisma schema changes + migrate + seed.
+
+3. New commit for **faculty routes**:
+   - FACULTY enum + type wiring + faculty endpoints + tests.
+
+After that, you’re in a great position to tackle **real attendance logic** on top of a proper timetable + faculty ownership.
