@@ -21,6 +21,26 @@
 @adminPassword = secure123
 @adminDevice = macbook-admin-1
 
+@securityRoll = SEC1001
+@securityEmail = security1@campus.edu
+@securityPassword = secure123
+@securityDevice = macbook-security-1
+
+### Live seeded IDs after the latest Prisma reset/seed. Refresh these with psql if you reseed again.
+@pendingStudentId = f4fc9f8b-3ee1-40f8-b834-8322eff17bbc
+@activeStudentId = ffd4538d-40d2-4bfd-adfa-db2f585b1353
+@rohanStudentId = 47d1a2d8-0045-4add-9e07-921e566128fd
+@priyaStudentId = 4bacd8ea-63af-4c27-801c-32e80dc263ca
+@adminAccountId = 1e838153-4264-4cf7-8efd-6b8f7fb468fc
+@securityAccountId = 3acd4339-2b45-4917-95aa-6278e8a59bd8
+
+@mainGateId = 27ac9e6b-84c9-4d04-bc65-a37b06f1d0df
+@parkingZoneId = 549633f9-9483-4190-9b93-3fdbd53d4e8f
+@cs103LabId = adac6c4a-23cd-4fa8-936f-51cd38284cf3
+
+@anjaliRfid = RFID_B_002
+@rohanInvalidRfid = RFID_WRONG_999
+
 ### Health
 GET {{baseUrl}}/health
 Accept: application/json
@@ -102,6 +122,34 @@ Accept: application/json
   "password": "{{activePassword}}",
   "deviceId": "{{deviceB}}"
 }
+
+### Security login for access-control writer endpoints
+# @name securityLoginRequest
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{securityRoll}}",
+  "password": "{{securityPassword}}",
+  "deviceId": "{{securityDevice}}"
+}
+
+@securityToken = {{securityLoginRequest.response.body.accessToken}}
+
+### Admin login for access audit endpoints
+# @name adminLoginRequest
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{adminRoll}}",
+  "password": "{{adminPassword}}",
+  "deviceId": "{{adminDevice}}"
+}
+
+@adminToken = {{adminLoginRequest.response.body.accessToken}}
 
 ### 7. Device switch active account from device B to device A
 POST {{baseUrl}}/auth/device/switch
@@ -231,22 +279,94 @@ Accept: application/json
   "source": "test-http"
 }
 
-### Access check placeholder
+### Access check should be forbidden for a student token
 POST {{baseUrl}}/access/check
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 Accept: application/json
 
 {
-  "studentId": "{{testStudentId}}",
-  "checkpointId": "gate-01",
-  "mode": "entry"
+  "accountId": "{{activeStudentId}}",
+  "geofenceId": "{{mainGateId}}",
+  "action": "ENTRY",
+  "credentialType": "RFID",
+  "credentialValue": "{{anjaliRfid}}"
 }
 
-### Access history placeholder
+### Student can fetch their own access history through the legacy route
 GET {{baseUrl}}/access/{{testStudentId}}
 Authorization: Bearer {{authToken}}
 Accept: application/json
+
+### Student can fetch their own access history through the new self-service route
+GET {{baseUrl}}/access/me/events
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Student should be forbidden from the global access-events endpoint
+GET {{baseUrl}}/access/events
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Admin can list all access events
+GET {{baseUrl}}/access/events?page=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+Accept: application/json
+
+### Security can record an allowed entry for an active student with a valid RFID
+POST {{baseUrl}}/access/check
+Authorization: Bearer {{securityToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "accountId": "{{activeStudentId}}",
+  "geofenceId": "{{mainGateId}}",
+  "action": "ENTRY",
+  "credentialType": "RFID",
+  "credentialValue": "{{anjaliRfid}}"
+}
+
+### Security can record a denied attempt for a pending student
+POST {{baseUrl}}/access/check
+Authorization: Bearer {{securityToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "accountId": "{{pendingStudentId}}",
+  "geofenceId": "{{mainGateId}}",
+  "action": "ENTRY",
+  "credentialType": "RFID",
+  "credentialValue": "RFID_A_001"
+}
+
+### Security can record a denied parking attempt for a student
+POST {{baseUrl}}/access/check
+Authorization: Bearer {{securityToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "accountId": "{{priyaStudentId}}",
+  "geofenceId": "{{parkingZoneId}}",
+  "action": "ENTRY",
+  "credentialType": "MANUAL"
+}
+
+### Security can record a denied RFID mismatch attempt
+POST {{baseUrl}}/access/check
+Authorization: Bearer {{securityToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "accountId": "{{rohanStudentId}}",
+  "geofenceId": "{{cs103LabId}}",
+  "action": "ENTRY",
+  "credentialType": "RFID",
+  "credentialValue": "{{rohanInvalidRfid}}"
+}
 
 ### Presence summary placeholder
 GET {{baseUrl}}/presence/{{testStudentId}}
