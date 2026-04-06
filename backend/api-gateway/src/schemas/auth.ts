@@ -100,6 +100,7 @@ export const ProfileResponseSchema = z.object({
 });
 
 export type ProfileResponse = z.infer<typeof ProfileResponseSchema>;
+
 export const ForgotPasswordRequestSchema = z.object({
   identifier: z.string().min(1, 'Roll number or email is required'),
 });

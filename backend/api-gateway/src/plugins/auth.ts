@@ -148,7 +148,7 @@ import {
   ForgotPasswordRequestSchema,
   ResetPasswordRequestSchema,
   type RefreshRequest,
-} from '../schemas/auth'; 
+} from '../schemas/auth';  
 import { AppError } from '@nexus/core';
 import crypto from 'crypto';
 import { PrismaAuthStore } from '../stores/prisma-auth-store';

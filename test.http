@@ -8,7 +8,9 @@
 
 @activeRoll = CS21002
 @activeEmail = cs21002@campus.edu
+### Initial seeded password before running the password reset flow below.
 @activePassword = pass123
+@resetPasswordNew = newpass456
 
 @deviceA = ios-iphone-15
 @deviceB = android-pixel-8
@@ -120,6 +122,88 @@ Accept: application/json
 {
   "activationToken": "{{pendingActivationToken}}",
   "password": "{{newActivatedPassword}}"
+}
+
+# ==========================================
+# PASSWORD RESET FLOWS
+# ==========================================
+
+### 1. Request reset token for an existing account
+# @name forgotPasswordExisting
+POST {{baseUrl}}/auth/password/forgot
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{activeEmail}}"
+}
+
+### Store reset token returned for local testing
+@passwordResetToken = {{forgotPasswordExisting.response.body.resetToken}}
+
+### After test 2 succeeds, the live password for {{activeEmail}} becomes {{resetPasswordNew}} until changed again.
+
+### 2. Reset password using the generated token
+# @name resetPasswordSuccess
+POST {{baseUrl}}/auth/password/reset
+Content-Type: application/json
+Accept: application/json
+
+{
+  "resetToken": "{{passwordResetToken}}",
+  "newPassword": "{{resetPasswordNew}}"
+}
+
+### 3. Login using the new password
+# @name loginWithNewPassword
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{activeEmail}}",
+  "password": "{{resetPasswordNew}}",
+  "deviceId": "{{deviceA}}"
+}
+
+### 4. Login using the old password should fail
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{activeEmail}}",
+  "password": "{{activePassword}}",
+  "deviceId": "{{deviceA}}"
+}
+
+### 5. Reuse the same reset token should fail
+POST {{baseUrl}}/auth/password/reset
+Content-Type: application/json
+Accept: application/json
+
+{
+  "resetToken": "{{passwordResetToken}}",
+  "newPassword": "anotherpassword"
+}
+
+### 6. Request reset for a non-existent account
+POST {{baseUrl}}/auth/password/forgot
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "ghost@campus.edu"
+}
+
+### 7. Validation error for missing token and short password
+POST {{baseUrl}}/auth/password/reset
+Content-Type: application/json
+Accept: application/json
+
+{
+  "resetToken": "",
+  "newPassword": "ab"
 }
 
 # ==========================================
@@ -361,3 +445,25 @@ Accept: application/json
 ### Missing token
 GET http://localhost:3000/students/me
 Accept: application/json
+
+### Reseed
+# @name CS21002ForgotPassword
+POST http://localhost:3000/auth/password/forgot
+Content-Type: application/json
+
+{
+  "identifier": "cs21002@campus.edu"
+}
+
+
+### capture the reset token for cs21002
+@cs21002NewResetToken = {{CS21002ForgotPassword.response.body.resetToken}}
+
+### pt 2
+POST http://localhost:3000/auth/password/reset
+Content-Type: application/json
+
+{
+  "resetToken": "{{cs21002NewResetToken}}",
+  "newPassword": "pass123"
+}
