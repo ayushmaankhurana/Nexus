@@ -143,11 +143,14 @@ import {
   LoginRequestSchema,
   LogoutRequestSchema,
   DeviceSwitchRequestSchema,
-  RefreshRequestSchema, // <-- Added
-  AuthResponseSchema,   // <-- Added
-  type RefreshRequest   // <-- Added
-} from '../schemas/auth';
+  RefreshRequestSchema,
+  AuthResponseSchema,
+  ForgotPasswordRequestSchema,
+  ResetPasswordRequestSchema,
+  type RefreshRequest,
+} from '../schemas/auth';  
 import { AppError } from '@nexus/core';
+import crypto from 'crypto';
 import { PrismaAuthStore } from '../stores/prisma-auth-store';
 
 const authPlugin: FastifyPluginAsync = async (fastify) => {
@@ -227,7 +230,71 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       }
     }
   );
+  // POST /auth/password/forgot
+  fastify.post('/auth/password/forgot', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const body = ForgotPasswordRequestSchema.parse(request.body);
+      const account = await store.getAccountByEmailOrRollNumber(body.identifier);
 
+      if (!account) {
+        return reply.code(200).send({
+          message: 'If an account exists for this identifier, a reset token has been generated.',
+        });
+      }
+
+      if (account.status !== 'active') {
+        return reply.code(200).send({
+          message: 'If an account exists for this identifier, a reset token has been generated.',
+        });
+      }
+
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+      await store.setResetToken(account.studentId, resetToken, expiresAt);
+
+      console.log(`\n PASSWORD RESET TOKEN for ${account.email}:`);
+      console.log(` Token: ${resetToken}`);
+      console.log(` Expires: ${expiresAt.toISOString()}\n`);
+
+      return reply.code(200).send({
+        message: 'If an account exists for this identifier, a reset token has been generated.',
+        resetToken, // DEV ONLY — remove before production
+      });
+    } catch (error) {
+      return handleError(reply, error);
+    }
+  });
+
+  // POST /auth/password/reset
+  fastify.post('/auth/password/reset', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const body = ResetPasswordRequestSchema.parse(request.body);
+
+      const account = await store.getAccountByResetToken(body.resetToken);
+      if (!account) {
+        throw new AppError(
+          'INVALID_RESET_TOKEN',
+          400,
+          'Reset token is invalid or has expired'
+        );
+      }
+
+      await store.resetPassword(body.resetToken, body.newPassword);
+
+      const activeSession = await store.getActiveDeviceSession(account.studentId);
+      if (activeSession) {
+        await store.invalidateSession(activeSession.accessToken);
+      }
+
+      return reply.code(200).send({
+        message: 'Password has been reset successfully. Please log in again.',
+      });
+    } catch (error) {
+      return handleError(reply, error);
+    }
+  });
+  
 
   // --- NEW REFRESH ROUTE ---
   fastify.post('/auth/refresh', async (request: FastifyRequest, reply: FastifyReply) => {

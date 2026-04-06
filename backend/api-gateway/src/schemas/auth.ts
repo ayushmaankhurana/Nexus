@@ -61,3 +61,55 @@ export const RefreshRequestSchema = z.object({
 });
 
 export type RefreshRequest = z.infer<typeof RefreshRequestSchema>;
+
+export const CreateStudentRequestSchema = z.object({
+  rollNumber: z.string().min(1, 'rollNumber is required'),
+  email: z.string().email('valid email is required'),
+  firstName: z.string().min(1, 'firstName is required'),
+  lastName: z.string().min(1, 'lastName is required'),
+  rfidTag: z.string().min(1).optional(),
+});
+
+export type CreateStudentRequest = z.infer<typeof CreateStudentRequestSchema>;
+
+export const CreateStudentResponseSchema = z.object({
+  id: z.string(),
+  rollNumber: z.string(),
+  email: z.string().email(),
+  role: z.string(),
+  status: z.string(),
+  profile: z.object({
+    firstName: z.string(),
+    lastName: z.string(),
+    rfidTag: z.string().optional(),
+  }),
+  activationToken: z.string().optional(),
+});
+
+export type CreateStudentResponse = z.infer<typeof CreateStudentResponseSchema>;
+
+export const ProfileResponseSchema = z.object({
+  id: z.string(),
+  rollNumber: z.string(),
+  email: z.string().email(),
+  role: z.string(),
+  status: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  rfidTag: z.string().nullable(),
+});
+
+export type ProfileResponse = z.infer<typeof ProfileResponseSchema>;
+
+export const ForgotPasswordRequestSchema = z.object({
+  identifier: z.string().min(1, 'Roll number or email is required'),
+});
+
+export type ForgotPasswordRequest = z.infer<typeof ForgotPasswordRequestSchema>;
+
+export const ResetPasswordRequestSchema = z.object({
+  resetToken: z.string().min(1, 'Reset token is required'),
+  newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
+export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequestSchema>;

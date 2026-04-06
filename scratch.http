@@ -8,9 +8,7 @@
 
 @activeRoll = CS21002
 @activeEmail = cs21002@campus.edu
-### Initial seeded password before running the password reset flow below.
-@activePassword = pass123
-@resetPasswordNew = newpass456
+@activePassword = pass456
 
 @deviceA = ios-iphone-15
 @deviceB = android-pixel-8
@@ -20,26 +18,6 @@
 @adminEmail = admin1@campus.edu
 @adminPassword = secure123
 @adminDevice = macbook-admin-1
-
-@securityRoll = SEC1001
-@securityEmail = security1@campus.edu
-@securityPassword = secure123
-@securityDevice = macbook-security-1
-
-### Live seeded IDs after the latest Prisma reset/seed. Refresh these with psql if you reseed again.
-@pendingStudentId = f4fc9f8b-3ee1-40f8-b834-8322eff17bbc
-@activeStudentId = ffd4538d-40d2-4bfd-adfa-db2f585b1353
-@rohanStudentId = 47d1a2d8-0045-4add-9e07-921e566128fd
-@priyaStudentId = 4bacd8ea-63af-4c27-801c-32e80dc263ca
-@adminAccountId = 1e838153-4264-4cf7-8efd-6b8f7fb468fc
-@securityAccountId = 3acd4339-2b45-4917-95aa-6278e8a59bd8
-
-@mainGateId = 27ac9e6b-84c9-4d04-bc65-a37b06f1d0df
-@parkingZoneId = 549633f9-9483-4190-9b93-3fdbd53d4e8f
-@cs103LabId = adac6c4a-23cd-4fa8-936f-51cd38284cf3
-
-@anjaliRfid = RFID_B_002
-@rohanInvalidRfid = RFID_WRONG_999
 
 ### Health
 GET {{baseUrl}}/health
@@ -123,34 +101,6 @@ Accept: application/json
   "deviceId": "{{deviceB}}"
 }
 
-### Security login for access-control writer endpoints
-# @name securityLoginRequest
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-Accept: application/json
-
-{
-  "identifier": "{{securityRoll}}",
-  "password": "{{securityPassword}}",
-  "deviceId": "{{securityDevice}}"
-}
-
-@securityToken = {{securityLoginRequest.response.body.accessToken}}
-
-### Admin login for access audit endpoints
-# @name adminLoginRequest
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-Accept: application/json
-
-{
-  "identifier": "{{adminRoll}}",
-  "password": "{{adminPassword}}",
-  "deviceId": "{{adminDevice}}"
-}
-
-@adminToken = {{adminLoginRequest.response.body.accessToken}}
-
 ### 7. Device switch active account from device B to device A
 POST {{baseUrl}}/auth/device/switch
 Content-Type: application/json
@@ -170,88 +120,6 @@ Accept: application/json
 {
   "activationToken": "{{pendingActivationToken}}",
   "password": "{{newActivatedPassword}}"
-}
-
-# ==========================================
-# PASSWORD RESET FLOWS
-# ==========================================
-
-### 1. Request reset token for an existing account
-# @name forgotPasswordExisting
-POST {{baseUrl}}/auth/password/forgot
-Content-Type: application/json
-Accept: application/json
-
-{
-  "identifier": "{{activeEmail}}"
-}
-
-### Store reset token returned for local testing
-@passwordResetToken = {{forgotPasswordExisting.response.body.resetToken}}
-
-### After test 2 succeeds, the live password for {{activeEmail}} becomes {{resetPasswordNew}} until changed again.
-
-### 2. Reset password using the generated token
-# @name resetPasswordSuccess
-POST {{baseUrl}}/auth/password/reset
-Content-Type: application/json
-Accept: application/json
-
-{
-  "resetToken": "{{passwordResetToken}}",
-  "newPassword": "{{resetPasswordNew}}"
-}
-
-### 3. Login using the new password
-# @name loginWithNewPassword
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-Accept: application/json
-
-{
-  "identifier": "{{activeEmail}}",
-  "password": "{{resetPasswordNew}}",
-  "deviceId": "{{deviceA}}"
-}
-
-### 4. Login using the old password should fail
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-Accept: application/json
-
-{
-  "identifier": "{{activeEmail}}",
-  "password": "{{activePassword}}",
-  "deviceId": "{{deviceA}}"
-}
-
-### 5. Reuse the same reset token should fail
-POST {{baseUrl}}/auth/password/reset
-Content-Type: application/json
-Accept: application/json
-
-{
-  "resetToken": "{{passwordResetToken}}",
-  "newPassword": "anotherpassword"
-}
-
-### 6. Request reset for a non-existent account
-POST {{baseUrl}}/auth/password/forgot
-Content-Type: application/json
-Accept: application/json
-
-{
-  "identifier": "ghost@campus.edu"
-}
-
-### 7. Validation error for missing token and short password
-POST {{baseUrl}}/auth/password/reset
-Content-Type: application/json
-Accept: application/json
-
-{
-  "resetToken": "",
-  "newPassword": "ab"
 }
 
 # ==========================================
@@ -279,94 +147,22 @@ Accept: application/json
   "source": "test-http"
 }
 
-### Access check should be forbidden for a student token
+### Access check placeholder
 POST {{baseUrl}}/access/check
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 Accept: application/json
 
 {
-  "accountId": "{{activeStudentId}}",
-  "geofenceId": "{{mainGateId}}",
-  "action": "ENTRY",
-  "credentialType": "RFID",
-  "credentialValue": "{{anjaliRfid}}"
+  "studentId": "{{testStudentId}}",
+  "checkpointId": "gate-01",
+  "mode": "entry"
 }
 
-### Student can fetch their own access history through the legacy route
+### Access history placeholder
 GET {{baseUrl}}/access/{{testStudentId}}
 Authorization: Bearer {{authToken}}
 Accept: application/json
-
-### Student can fetch their own access history through the new self-service route
-GET {{baseUrl}}/access/me/events
-Authorization: Bearer {{authToken}}
-Accept: application/json
-
-### Student should be forbidden from the global access-events endpoint
-GET {{baseUrl}}/access/events
-Authorization: Bearer {{authToken}}
-Accept: application/json
-
-### Admin can list all access events
-GET {{baseUrl}}/access/events?page=1&pageSize=10
-Authorization: Bearer {{adminToken}}
-Accept: application/json
-
-### Security can record an allowed entry for an active student with a valid RFID
-POST {{baseUrl}}/access/check
-Authorization: Bearer {{securityToken}}
-Content-Type: application/json
-Accept: application/json
-
-{
-  "accountId": "{{activeStudentId}}",
-  "geofenceId": "{{mainGateId}}",
-  "action": "ENTRY",
-  "credentialType": "RFID",
-  "credentialValue": "{{anjaliRfid}}"
-}
-
-### Security can record a denied attempt for a pending student
-POST {{baseUrl}}/access/check
-Authorization: Bearer {{securityToken}}
-Content-Type: application/json
-Accept: application/json
-
-{
-  "accountId": "{{pendingStudentId}}",
-  "geofenceId": "{{mainGateId}}",
-  "action": "ENTRY",
-  "credentialType": "RFID",
-  "credentialValue": "RFID_A_001"
-}
-
-### Security can record a denied parking attempt for a student
-POST {{baseUrl}}/access/check
-Authorization: Bearer {{securityToken}}
-Content-Type: application/json
-Accept: application/json
-
-{
-  "accountId": "{{priyaStudentId}}",
-  "geofenceId": "{{parkingZoneId}}",
-  "action": "ENTRY",
-  "credentialType": "MANUAL"
-}
-
-### Security can record a denied RFID mismatch attempt
-POST {{baseUrl}}/access/check
-Authorization: Bearer {{securityToken}}
-Content-Type: application/json
-Accept: application/json
-
-{
-  "accountId": "{{rohanStudentId}}",
-  "geofenceId": "{{cs103LabId}}",
-  "action": "ENTRY",
-  "credentialType": "RFID",
-  "credentialValue": "{{rohanInvalidRfid}}"
-}
 
 ### Presence summary placeholder
 GET {{baseUrl}}/presence/{{testStudentId}}
@@ -433,7 +229,6 @@ Accept: application/json
   "password": "{{adminPassword}}",
   "deviceId": "{{adminDevice}}"
 }
-### Store admin token for later requests
 
 @adminAuthToken = {{adminLogin.response.body.accessToken}}
 @adminStudentId = {{adminLogin.response.body.user.id}}
@@ -453,7 +248,7 @@ Accept: application/json
   "lastName": "Kapoor",
   "rfidTag": "RFID_E_005"
 }
-### Admin creates a new pending student
+
 @createdStudentActivationToken = {{createStudentSuccess.response.body.activationToken}}
 @createdStudentEmail = {{createStudentSuccess.response.body.email}}
 
@@ -542,48 +337,4 @@ Accept: application/json
   "deviceId": "student-device-new-1"
 }
 
-### Get my own profile
-GET http://localhost:3000/students/me
-Authorization: Bearer {{authToken}}
-Accept: application/json
 
-### Student fetches own profile by ID
-GET http://localhost:3000/students/{{testStudentId}}/profile
-Authorization: Bearer {{authToken}}
-Accept: application/json
-
-### Student tries to access another student's profile
-GET http://localhost:3000/students/some-other-id/profile
-Authorization: Bearer {{authToken}}
-Accept: application/json
-
-### Admin fetches a student profile
-GET http://localhost:3000/students/{{testStudentId}}/profile
-Authorization: Bearer {{adminAuthToken}}
-Accept: application/json
-
-### Missing token
-GET http://localhost:3000/students/me
-Accept: application/json
-
-### Reseed
-# @name CS21002ForgotPassword
-POST http://localhost:3000/auth/password/forgot
-Content-Type: application/json
-
-{
-  "identifier": "cs21002@campus.edu"
-}
-
-
-### capture the reset token for cs21002
-@cs21002NewResetToken = {{CS21002ForgotPassword.response.body.resetToken}}
-
-### pt 2
-POST http://localhost:3000/auth/password/reset
-Content-Type: application/json
-
-{
-  "resetToken": "{{cs21002NewResetToken}}",
-  "newPassword": "pass123"
-}
