@@ -83,11 +83,15 @@ export interface AccessEvent {
   id: string;
   studentId: string;
   studentName?: string;
+  rollNumber?: string;
   checkpoint: string;
+  checkpointId?: string;
   timestamp: string;
   status: "allowed" | "denied" | "pending" | "expired";
   method: string;
   direction?: "in" | "out";
+  action?: "ENTRY" | "EXIT" | "DENIED";
+  reason?: string | null;
 }
 
 export interface AccessRequest {

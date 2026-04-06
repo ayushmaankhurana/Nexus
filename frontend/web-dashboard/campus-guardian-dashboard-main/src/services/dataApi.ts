@@ -4,6 +4,7 @@ import * as mock from "@/mocks/data";
 
 const USE_MOCK = true;
 const USE_MOCK_STUDENT_LOOKUP = false;
+const USE_MOCK_ACCESS = false;
 const delay = (ms = 500) => new Promise((r) => setTimeout(r, ms));
 
 type BackendStudent = {
@@ -57,6 +58,35 @@ type BackendAccessHistory = {
   total: number;
 };
 
+type BackendAccessEvent = {
+  id: string;
+  accountId: string;
+  studentId: string;
+  rollNumber: string;
+  studentName: string;
+  geofenceId: string;
+  geofenceName: string;
+  geofenceType: string;
+  timestamp: string;
+  action: "ENTRY" | "EXIT" | "DENIED";
+  reason: string | null;
+};
+
+type BackendAccessCheckResult = {
+  decision: "ALLOW" | "DENY";
+  event: BackendAccessEvent;
+  shouldEscalate: boolean;
+  deniedCountWindow: number;
+};
+
+type AccessCheckInput = {
+  accountId: string;
+  geofenceId: string;
+  action: "ENTRY" | "EXIT";
+  credentialType?: "RFID" | "MANUAL" | "QR";
+  credentialValue?: string;
+};
+
 function mapBackendStudent(student: BackendStudent): User {
   return {
     id: student.id,
@@ -96,6 +126,31 @@ function mapBackendAttendanceRecord(record: BackendAttendanceRecord): Attendance
     checkIn: timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     course: `${record.courseCode} - ${record.courseTitle}`,
     location: record.room,
+  };
+}
+
+function humanizeAccessReason(reason: string): string {
+  return reason
+    .toLowerCase()
+    .split("_")
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+function mapBackendAccessEvent(event: BackendAccessEvent): AccessEvent {
+  return {
+    id: event.id,
+    studentId: event.accountId,
+    studentName: event.studentName,
+    rollNumber: event.rollNumber,
+    checkpoint: event.geofenceName,
+    checkpointId: event.geofenceId,
+    timestamp: event.timestamp,
+    status: event.action === "DENIED" ? "denied" : "allowed",
+    method: event.reason ? humanizeAccessReason(event.reason) : event.action === "EXIT" ? "Exit" : "Entry",
+    direction: event.action === "EXIT" ? "out" : event.action === "ENTRY" ? "in" : undefined,
+    action: event.action,
+    reason: event.reason,
   };
 }
 
@@ -168,12 +223,38 @@ export const attendanceApi = {
 
 export const accessApi = {
   async getAll(params?: Record<string, string>): Promise<PaginatedResponse<AccessEvent>> {
-    if (USE_MOCK) { await delay(); return { data: mock.mockAccessEvents, total: mock.mockAccessEvents.length, page: 1, pageSize: 20, totalPages: 1 }; }
-    return apiGet("/access", params);
+    if (USE_MOCK_ACCESS) { await delay(); return { data: mock.mockAccessEvents, total: mock.mockAccessEvents.length, page: 1, pageSize: 20, totalPages: 1 }; }
+    const response = await apiGet<PaginatedResponse<BackendAccessEvent>>("/access/events", params);
+    return {
+      ...response,
+      data: response.data.map(mapBackendAccessEvent),
+    };
   },
   async getMine(): Promise<{ events: AccessEvent[]; requests: AccessRequest[] }> {
-    if (USE_MOCK) { await delay(); return { events: mock.mockAccessEvents.filter(e => e.studentId === "stu-001"), requests: mock.mockAccessRequests.filter(r => r.studentId === "stu-001") }; }
-    return apiGet("/access/me");
+    if (USE_MOCK_ACCESS) { await delay(); return { events: mock.mockAccessEvents.filter(e => e.studentId === "stu-001"), requests: mock.mockAccessRequests.filter(r => r.studentId === "stu-001") }; }
+    const response = await apiGet<PaginatedResponse<BackendAccessEvent>>("/access/me/events");
+    return {
+      events: response.data.map(mapBackendAccessEvent),
+      requests: [],
+    };
+  },
+  async check(body: AccessCheckInput): Promise<{ decision: "ALLOW" | "DENY"; event: AccessEvent; shouldEscalate: boolean; deniedCountWindow: number }> {
+    if (USE_MOCK_ACCESS) {
+      await delay();
+      const fallbackEvent = mock.mockAccessEvents[0];
+      return {
+        decision: fallbackEvent.status === "denied" ? "DENY" : "ALLOW",
+        event: fallbackEvent,
+        shouldEscalate: false,
+        deniedCountWindow: 0,
+      };
+    }
+
+    const response = await apiPost<BackendAccessCheckResult>("/access/check", body);
+    return {
+      ...response,
+      event: mapBackendAccessEvent(response.event),
+    };
   },
   async approve(id: string): Promise<void> {
     if (USE_MOCK) { await delay(); return; }
