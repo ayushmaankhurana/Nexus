@@ -4,15 +4,17 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // url is removed from here!
+  // url is injected via DATABASE_URL in .env
 }
 
 // ... keep your enums and models (Account, Session) exactly as they were ...
 // 1. Enums for strict type safety across the platform
+
 enum UserRole {
   STUDENT
   ADMIN
   SECURITY
+  FACULTY // Added in migration: add_timetable_and_faculty
 }
 
 enum AccountStatus {
@@ -34,6 +36,22 @@ enum AccessReason {
   UNKNOWN_GEOFENCE
 }
 
+// New enum for attendance status – replaces the raw String field
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+// Method used to record attendance
+enum AttendanceMethod {
+  QR        // Dynamic QR scan (V1 primary)
+  BLE       // BLE beacon (Vfinal primary)
+  MANUAL    // Faculty/admin override
+  GEOFENCE  // Geofence-only (presence, NOT sufficient alone for strict attendance)
+}
+
 // 2. The Core Identity Model
 model Account {
   id                  String        @id @default(uuid())
@@ -48,12 +66,16 @@ model Account {
 
   // Relations
   sessions          Session[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
   profile           StudentProfile? // <-- ADD THIS
+  facultyProfile    FacultyProfile? // apparently we need this according to handoff 06-04 so am adding this
   attendanceRecords AttendanceRecord[] // <-- ADD THIS
   accessEvents      AccessEvent[] // <-- ADD THIS
   incidents         Incident[]
+  groupMemberships  StudentGroupMembership[] // needed for groups or class roll call
+  facultyAssignments FacultyAssignment[] // incharge of the class like can this person mark the attendance for the class or not.
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("accounts") // Renames the table in Postgres to lowercase plural
 }
@@ -91,30 +113,151 @@ model StudentProfile {
   @@map("student_profiles")
 }
 
+// for faculty data
+model FacultyProfile {
+  id         String  @id @default(uuid())
+  accountId  String  @unique
+  firstName  String
+  lastName   String
+  department String
+  title      String? // e.g. "Associate Professor"
+
+  account    Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  assignments FacultyAssignment[]
+
+  @@map("faculty_profiles")
+}
+
+// 4. TIMETABLE (Person 3 scope) basically how the time table would be like 
+model Course {
+  id         String    @id @default(uuid())
+  code       String    @unique // e.g. "CS101"
+  title      String             // e.g. "Data Structures"
+  department String
+  credits    Int       @default(3)
+
+  sections   Section[]
+
+  createdAt  DateTime  @default(now())
+
+  @@map("courses")
+}
+
+model Section {
+  id       String @id @default(uuid())
+  courseId String
+  code     String  // e.g. "A", "B"
+  term     String  // e.g. "Spring"
+  year     Int     // e.g. 2026
+
+  course   Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  groups   StudentGroup[]
+  templates ClassSessionTemplate[]
+  assignments FacultyAssignment[]
+
+  @@unique([courseId, code, term, year])
+  @@map("sections")
+}
+
+// A section can have 1–2 groups (e.g. A1 and A2 share most sessions)
+model StudentGroup {
+  id        String @id @default(uuid())
+  sectionId String
+  code      String  // e.g. "A1", "A2"
+  name      String  // e.g. "Group 1"
+
+  section     Section                  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  memberships StudentGroupMembership[]
+  templates   ClassSessionTemplate[]   @relation("GroupSessionTemplates")
+  assignments FacultyAssignment[]
+
+  @@unique([sectionId, code])
+  @@map("student_groups")
+}
+
+model StudentGroupMembership {
+  id        String @id @default(uuid())
+  groupId   String
+  accountId String
+
+  group   StudentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  account Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, accountId])
+  @@map("student_group_memberships")
+}
+
+model FacultyAssignment {
+  id               String  @id @default(uuid())
+  facultyAccountId String
+  sectionId        String?
+  groupId          String? // null = teaches whole section
+
+  faculty  Account       @relation(fields: [facultyAccountId], references: [id], onDelete: Cascade)
+  section  Section?      @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  group    StudentGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  facultyProfile FacultyProfile? @relation(fields: [facultyAccountId], references: [accountId])
+
+  @@map("faculty_assignments")
+}
+
+// Recurring class schedule (e.g. every Monday 9–10am in Room CS-101)
+// V1 uses templates + scheduledDate on AttendanceRecord (no explicit instance rows)
+model ClassSessionTemplate {
+  id               String  @id @default(uuid())
+  sectionId        String
+  groupId          String? // null = applies to full section
+  facultyAccountId String? // who teaches this slot (can differ per group)
+  dayOfWeek        Int     // 0 = Sunday … 6 = Saturday (JS convention)
+  startTime        String  // "09:00" (HH:mm, 24-hour)
+  endTime          String  // "10:00"
+  room             String  // e.g. "CS-101"
+  geofenceId       String? // optional geofence for location validation
+
+  section    Section       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  group      StudentGroup? @relation("GroupSessionTemplates", fields: [groupId], references: [id], onDelete: SetNull)
+  geofence   Geofence?     @relation(fields: [geofenceId], references: [id], onDelete: SetNull)
+
+  attendanceRecords AttendanceRecord[]
+
+  @@map("class_session_templates")
+}
+
+// --- ATTENDANCE (Used by Person 3) --- updated a bit cause chatgpts says: We replaced string-based class tracking with a relational timetable model using session templates and scheduled dates, enabling validation, security (QR + geofence), and accurate attendance analytics
+model AttendanceRecord {
+  id                     String           @id @default(uuid())
+  accountId              String
+  classSessionTemplateId String           // replaces old raw classId String
+  scheduledDate          DateTime         // the actual calendar date of the class
+  timestamp              DateTime         @default(now())
+  status                 AttendanceStatus @default(ABSENT)
+  method                 AttendanceMethod @default(QR)
+  qrToken                String?          // the QR token scanned (for audit)
+  geofenceValidated      Boolean          @default(false) // did geofence check pass?
+  markedByFacultyId      String?          // if marked manually by faculty
+
+  account              Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  classSessionTemplate ClassSessionTemplate @relation(fields: [classSessionTemplateId], references: [id], onDelete: Restrict)
+
+  // Prevent duplicate attendance for the same student+session+date
+  @@unique([accountId, classSessionTemplateId, scheduledDate])
+  @@index([accountId, scheduledDate])
+  @@index([classSessionTemplateId, scheduledDate])
+  @@map("attendance_records")
+}
+
 // --- LOCATION & PRESENCE (Used by Person 4 & 5) ---
 model Geofence {
-  id           String        @id @default(uuid())
-  name         String        @unique // e.g., "Main Gate", "CS Building"
+  id           String  @id @default(uuid())
+  name         String  @unique // e.g., "Main Gate", "CS Building"
   type         String // "BUILDING", "CLASSROOM", "PARKING"
   coordinates  Json // Stores Polygon lat/long data
   radius       Float? // If using circular geofences
-  isActive     Boolean       @default(true)
-  accessEvents AccessEvent[]
+  isActive     Boolean @default(true)
+  accessEvents  AccessEvent[]
+  sessionTemplates ClassSessionTemplate[] //added this for connect locations (geofences) with actual classes
 
   @@map("geofences")
-}
-
-// --- ATTENDANCE (Used by Person 3) ---
-model AttendanceRecord {
-  id        String   @id @default(uuid())
-  accountId String
-  classId   String // E.g., "CS-101"
-  timestamp DateTime @default(now())
-  status    String // "PRESENT", "LATE", "ABSENT"
-
-  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
-
-  @@map("attendance_records")
 }
 
 // --- ACCESS CONTROL (Used by Person 5 & 6) ---
@@ -129,15 +272,13 @@ model AccessEvent {
   account  Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
   geofence Geofence @relation(fields: [geofenceId], references: [id], onDelete: Restrict)
 
-  // Note: We don't strictly relation Geofence here in case geofences are deleted, 
-  // but you could add a relation if you prefer strict integrity.
-
   @@index([accountId, timestamp])
   @@index([geofenceId, timestamp])
   @@index([action, timestamp])
   @@map("access_events")
 }
 
+// 8. INCIDENTS
 model Incident {
   id          String    @id @default(uuid())
   accountId   String
