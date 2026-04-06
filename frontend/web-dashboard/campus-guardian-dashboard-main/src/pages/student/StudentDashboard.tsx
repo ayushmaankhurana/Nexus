@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatCard } from "@/components/shared/StatCard";
 import { SectionCard, PageHeader } from "@/components/shared/PageComponents";
@@ -10,18 +10,66 @@ import { getDisplayName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { accessApi, attendanceApi } from "@/services/dataApi";
-import { mockAlerts, mockSession, mockActivityEvents } from "@/mocks/data";
-import type { AccessEvent, AttendanceSummary } from "@/types";
+import { getDeviceId } from "@/services/apiClient";
+import { buildStudentAlerts } from "@/lib/studentAlerts";
+import type { AccessEvent, ActivityEvent, AttendanceRecord, AttendanceSummary } from "@/types";
+
+function getBrowserLabel(): string {
+  const userAgent = navigator.userAgent;
+
+  if (/iPhone|iPad|iPod/i.test(userAgent)) return "iPhone Safari";
+  if (/Android/i.test(userAgent)) return "Android Browser";
+  if (/Chrome/i.test(userAgent) && !/Edg/i.test(userAgent)) return "Chrome";
+  if (/Safari/i.test(userAgent) && !/Chrome/i.test(userAgent)) return "Safari";
+  if (/Firefox/i.test(userAgent)) return "Firefox";
+  if (/Edg/i.test(userAgent)) return "Edge";
+
+  return "Browser Session";
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function buildStudentActivity(userName: string, attendanceRecords: AttendanceRecord[], accessEvents: AccessEvent[]): ActivityEvent[] {
+  const attendanceActivity = attendanceRecords.map((record) => ({
+    id: `attendance-activity-${record.id}`,
+    type: "attendance" as const,
+    action: record.status,
+    description: `${record.course || "Scheduled class"} attendance marked ${record.status} on ${record.date}`,
+    userName,
+    timestamp: `${record.date}T00:00:00.000Z`,
+  }));
+
+  const accessActivity = accessEvents.map((event) => ({
+    id: `access-activity-${event.id}`,
+    type: "access" as const,
+    action: (event.action || event.status).toLowerCase(),
+    description: `${event.status === "denied" ? "Access denied" : "Access recorded"} at ${event.checkpoint}`,
+    userName,
+    timestamp: event.timestamp,
+  }));
+
+  return [...accessActivity, ...attendanceActivity]
+    .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())
+    .slice(0, 5);
+}
 
 export default function StudentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummary | null>(null);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [recentAccess, setRecentAccess] = useState<AccessEvent[]>([]);
   const [widgetLoading, setWidgetLoading] = useState(true);
   const [widgetError, setWidgetError] = useState<string | null>(null);
-  const recentAlerts = mockAlerts.filter(a => a.status === "unread").slice(0, 3);
-  const recentActivity = mockActivityEvents.filter(e => e.userId === "stu-001").slice(0, 5);
+  const studentName = getDisplayName(user);
+
+  const recentAlerts = useMemo(() => buildStudentAlerts(attendanceRecords, recentAccess).slice(0, 3), [attendanceRecords, recentAccess]);
+  const recentActivity = useMemo(() => buildStudentActivity(studentName, attendanceRecords, recentAccess), [attendanceRecords, recentAccess, studentName]);
+  const accessStatus = user?.status ? capitalize(user.status) : "Unknown";
+  const deviceLabel = getBrowserLabel();
+  const deviceId = getDeviceId();
 
   useEffect(() => {
     let cancelled = false;
@@ -38,7 +86,8 @@ export default function StudentDashboard() {
         if (cancelled) return;
 
         setAttendanceSummary(attendance.summary);
-        setRecentAccess(access.events.slice(0, 2));
+        setAttendanceRecords(attendance.records);
+        setRecentAccess(access.events);
       } catch (error) {
         if (!cancelled) {
           setWidgetError(error instanceof Error ? error.message : "Failed to load dashboard activity.");
@@ -63,14 +112,18 @@ export default function StudentDashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Attendance Rate" value={attendanceSummary ? `${attendanceSummary.percentage}%` : widgetLoading ? "..." : "0%"} subtitle={attendanceSummary ? `${attendanceSummary.present + attendanceSummary.late + attendanceSummary.excused} of ${attendanceSummary.totalDays} sessions on record` : "Live attendance history"} icon={CalendarCheck} />
-        <StatCard title="Access Status" value="Active" subtitle="All gates accessible" icon={DoorOpen} />
-        <StatCard title="Unread Alerts" value={recentAlerts.length} subtitle="Requires attention" icon={AlertTriangle} />
-        <StatCard title="Active Device" value={mockSession.deviceName} subtitle={mockSession.deviceType} icon={Smartphone} />
+        <StatCard title="Access Status" value={accessStatus} subtitle={recentAccess.some((event) => event.status === "denied") ? "Recent denied attempt detected" : "No recent denied access events"} icon={DoorOpen} />
+        <StatCard title="Unread Alerts" value={widgetLoading ? "..." : recentAlerts.length} subtitle="Derived from live attendance and access" icon={AlertTriangle} />
+        <StatCard title="Active Device" value={deviceLabel} subtitle={deviceId ? "Bound browser session" : "Device ID unavailable"} icon={Smartphone} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <SectionCard title="Recent Alerts" className="lg:col-span-2" actions={<Button variant="ghost" size="sm" onClick={() => navigate("/alerts")}>View all</Button>}>
-          {recentAlerts.length === 0 ? (
+          {widgetError ? (
+            <ErrorState message={widgetError} />
+          ) : widgetLoading ? (
+            <LoadingState className="min-h-[180px]" />
+          ) : recentAlerts.length === 0 ? (
             <p className="text-sm text-muted-foreground">No new alerts</p>
           ) : (
             <div className="space-y-3">
@@ -91,7 +144,15 @@ export default function StudentDashboard() {
         </SectionCard>
 
         <SectionCard title="Recent Activity">
-          <ActivityFeed items={recentActivity} />
+          {widgetError ? (
+            <ErrorState message={widgetError} />
+          ) : widgetLoading ? (
+            <LoadingState className="min-h-[180px]" />
+          ) : recentActivity.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No recent activity</p>
+          ) : (
+            <ActivityFeed items={recentActivity} />
+          )}
         </SectionCard>
       </div>
 
@@ -103,7 +164,7 @@ export default function StudentDashboard() {
             <LoadingState className="min-h-[120px]" />
           ) : (
             <div className="space-y-2">
-              {recentAccess.map(evt => (
+              {recentAccess.slice(0, 2).map(evt => (
                 <div key={evt.id} className="flex items-center justify-between text-sm">
                   <span>{evt.checkpoint}</span>
                   <StatusBadge variant={evt.status}>{evt.status}</StatusBadge>
@@ -116,9 +177,9 @@ export default function StudentDashboard() {
 
         <SectionCard title="Session Info">
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Device</span><span>{mockSession.deviceName}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="capitalize">{mockSession.deviceType}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">IP</span><span>{mockSession.ipAddress}</span></div>
+            <div className="flex justify-between gap-3"><span className="text-muted-foreground">Device</span><span className="text-right">{deviceLabel}</span></div>
+            <div className="flex justify-between gap-3"><span className="text-muted-foreground">Type</span><span className="text-right">Browser session</span></div>
+            <div className="flex justify-between gap-3"><span className="text-muted-foreground">Device ID</span><span className="max-w-[180px] truncate text-right">{deviceId || "Not initialized"}</span></div>
           </div>
         </SectionCard>
 

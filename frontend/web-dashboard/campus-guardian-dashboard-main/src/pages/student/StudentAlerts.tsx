@@ -1,19 +1,65 @@
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader, SectionCard } from "@/components/shared/PageComponents";
 import { StatusBadge, getStatusVariant } from "@/components/shared/StatusBadge";
-import { mockAlerts } from "@/mocks/data";
 import { AlertTriangle, Info, Bell, ShieldAlert } from "lucide-react";
-import { EmptyState } from "@/components/shared/StateComponents";
+import { EmptyState, ErrorState, LoadingState } from "@/components/shared/StateComponents";
 import { Button } from "@/components/ui/button";
+import { accessApi, attendanceApi } from "@/services/dataApi";
+import { buildStudentAlerts } from "@/lib/studentAlerts";
+import type { AccessEvent, AttendanceRecord } from "@/types";
 
 const typeIcons = { info: Info, warning: AlertTriangle, critical: ShieldAlert, notice: Bell };
 
 export default function StudentAlerts() {
-  const myAlerts = mockAlerts.filter(a => a.targetUserId === "stu-001" || !a.targetUserId);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [accessEvents, setAccessEvents] = useState<AccessEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAlerts() {
+      try {
+        setLoading(true);
+        setError(null);
+        const [attendance, access] = await Promise.all([
+          attendanceApi.getMine(),
+          accessApi.getMine(),
+        ]);
+
+        if (cancelled) return;
+
+        setAttendanceRecords(attendance.records);
+        setAccessEvents(access.events);
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : "Failed to load alerts.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadAlerts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const myAlerts = useMemo(() => buildStudentAlerts(attendanceRecords, accessEvents), [attendanceRecords, accessEvents]);
 
   return (
     <div className="space-y-6">
       <PageHeader title="My Alerts" description="View notifications, warnings, and system notices." />
-      {myAlerts.length === 0 ? (
+      {error ? (
+        <ErrorState message={error} />
+      ) : loading ? (
+        <LoadingState className="min-h-[220px]" />
+      ) : myAlerts.length === 0 ? (
         <EmptyState icon={<Bell className="h-10 w-10" />} title="No alerts" description="You're all caught up. No active alerts or notifications." />
       ) : (
         <div className="space-y-3">
@@ -39,9 +85,7 @@ export default function StudentAlerts() {
                       {alert.source && <span className="text-xs text-muted-foreground">via {alert.source}</span>}
                     </div>
                   </div>
-                  {alert.status === "unread" && (
-                    <Button variant="ghost" size="sm" className="flex-shrink-0">Mark read</Button>
-                  )}
+                  {alert.status === "unread" && <Button variant="ghost" size="sm" className="flex-shrink-0" disabled>Mark read</Button>}
                 </div>
               </SectionCard>
             );
