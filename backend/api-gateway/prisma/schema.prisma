@@ -70,6 +70,8 @@ model Account {
   facultyProfile     FacultyProfile? // apparently we need this according to handoff 06-04 so am adding this
   attendanceRecords  AttendanceRecord[] // <-- ADD THIS
   accessEvents       AccessEvent[] // <-- ADD THIS
+  presenceLocations  PresenceLocation[]
+  bleDetections      BleDetection[]
   incidents          Incident[]
   groupMemberships   StudentGroupMembership[] // needed for groups or class roll call
   facultyAssignments FacultyAssignment[] // incharge of the class like can this person mark the attendance for the class or not.
@@ -256,6 +258,35 @@ model Geofence {
   sessionTemplates ClassSessionTemplate[] //added this for connect locations (geofences) with actual classes
 
   @@map("geofences")
+}
+
+model PresenceLocation {
+  id         String   @id @default(uuid())
+  accountId  String
+  latitude   Float
+  longitude  Float
+  recordedAt DateTime
+  createdAt  DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, recordedAt])
+  @@map("presence_locations")
+}
+
+model BleDetection {
+  id         String   @id @default(uuid())
+  accountId  String
+  deviceId   String
+  seenBy     String
+  recordedAt DateTime
+  createdAt  DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, recordedAt])
+  @@index([deviceId, recordedAt])
+  @@map("ble_detections")
 }
 
 // --- ACCESS CONTROL (Used by Person 5 & 6) ---

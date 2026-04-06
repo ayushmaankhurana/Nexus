@@ -60,6 +60,11 @@
 @mainGateId = 27ac9e6b-84c9-4d04-bc65-a37b06f1d0df
 @parkingZoneId = 549633f9-9483-4190-9b93-3fdbd53d4e8f
 @cs103LabId = adac6c4a-23cd-4fa8-936f-51cd38284cf3
+@mainGateName = Main Campus Gate
+@mainGateLat = 28.4089
+@mainGateLng = 77.3178
+@backGateLat = 28.4081
+@backGateLng = 77.3169
 
 @anjaliRfid = RFID_B_002
 @rohanInvalidRfid = RFID_WRONG_999
@@ -473,14 +478,92 @@ Accept: application/json
   "credentialValue": "{{rohanInvalidRfid}}"
 }
 
-### Presence summary placeholder
+### Student updates their latest location near Main Campus Gate.
+### Expected: 200 success; for student tokens the backend ignores body userId and stores against the authenticated account.
+POST {{baseUrl}}/presence/update-location
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "userId": "{{pendingStudentId}}",
+  "lat": {{mainGateLat}},
+  "lng": {{mainGateLng}},
+  "timestamp": 1775493000000
+}
+
+### Student batch upload appends two more points to their own trail.
+### Expected: 200 success even though the body userId is ignored for self-service calls.
+POST {{baseUrl}}/presence/batch-upload
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+Accept: application/json
+
+[
+  {
+    "userId": "{{pendingStudentId}}",
+    "locations": [
+      {
+        "lat": {{backGateLat}},
+        "lng": {{backGateLng}},
+        "timestamp": 1775493060000
+      },
+      {
+        "lat": {{mainGateLat}},
+        "lng": {{mainGateLng}},
+        "timestamp": 1775493120000
+      }
+    ]
+  }
+]
+
+### Student stores a BLE detection event.
+### Expected: 200 success; event is attributed to the authenticated account and preserves the provided seenBy value.
+POST {{baseUrl}}/presence/ble-detection
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "deviceId": "ble-tag-student-1",
+  "seenBy": "ios-iphone-15",
+  "timestamp": 1775493180000
+}
+
+### Legacy presence summary now returns persisted state.
+### Expected: 200 with lastSeen populated and isPresent true while the latest timestamp is still within the freshness window.
 GET {{baseUrl}}/presence/{{testStudentId}}
 Authorization: Bearer {{authToken}}
 Accept: application/json
 
-### Presence trail placeholder
+### Legacy presence trail now returns derived checkpoints from stored points.
+### Expected: 200 with trail entries including Main Campus Gate / Back Campus Gate checkpoints.
 GET {{baseUrl}}/presence/{{testStudentId}}/trail
 Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Self-service geofence check uses the authenticated account instead of the body userId.
+### Expected: 200 with inside true for Main Campus Gate.
+POST {{baseUrl}}/presence/check-geofence
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "userId": "{{pendingStudentId}}",
+  "zoneName": "{{mainGateName}}"
+}
+
+### Admin can still inspect the raw latest-location alias for another account.
+### Expected: 200 with location geofence metadata populated.
+GET {{baseUrl}}/presence/current/{{testStudentId}}
+Authorization: Bearer {{adminToken}}
+Accept: application/json
+
+### Admin can still inspect the raw location-history alias for another account.
+### Expected: 200 with stored location points in chronological order.
+GET {{baseUrl}}/presence/history/{{testStudentId}}
+Authorization: Bearer {{adminToken}}
 Accept: application/json
 
 ### Incidents list placeholder

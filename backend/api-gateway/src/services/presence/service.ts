@@ -1,51 +1,96 @@
-// service.ts - Business logic for Presence & Location Service
+import { AppError } from '@nexus/core';
+import {
+  BLEDetection,
+  BatchLocation,
+  GeofenceCheckRequest,
+  GeofenceCheckResponse,
+  Location,
+  PresenceSummary,
+  PresenceTrailEntry,
+} from './model';
+import { extractGeofenceCircle, findContainingGeofence, isInsideGeofence, validateLocation } from './utils';
+import { PrismaPresenceStore } from '../../stores/prisma-presence-store';
 
-import { presenceStore, Location, BLEDetection, BatchLocation, GeofenceCheckRequest, GeofenceCheckResponse } from './model';
-import { isInsideGeofence, SAMPLE_GEOFENCES, validateLocation } from './utils';
+const PRESENCE_FRESHNESS_MS = 15 * 60 * 1000;
 
 export class PresenceService {
+  constructor(private store: PrismaPresenceStore = new PrismaPresenceStore()) {}
+
   /**
    * Update user's location
    */
   async updateLocation(userId: string, location: Location): Promise<void> {
     validateLocation(location);
-    presenceStore.updateLocation(userId, location);
+    await this.store.createLocation(userId, location);
   }
 
   /**
    * Get current location for a user
    */
   async getCurrentLocation(userId: string): Promise<Location | null> {
-    return presenceStore.getCurrentLocation(userId);
+    const location = await this.store.getCurrentLocation(userId);
+    if (!location) {
+      return null;
+    }
+
+    const geofences = await this.getActiveGeofenceCircles();
+    const matchedGeofence = findContainingGeofence(location, geofences);
+
+    return {
+      ...location,
+      geofenceId: matchedGeofence?.id ?? null,
+      geofenceName: matchedGeofence?.name ?? null,
+    };
   }
 
   /**
    * Get location history for a user
    */
   async getLocationHistory(userId: string): Promise<Location[]> {
-    return presenceStore.getLocationHistory(userId);
+    const [locations, geofences] = await Promise.all([
+      this.store.getLocationHistory(userId),
+      this.getActiveGeofenceCircles(),
+    ]);
+
+    return locations.map((location) => {
+      const matchedGeofence = findContainingGeofence(location, geofences);
+      return {
+        ...location,
+        geofenceId: matchedGeofence?.id ?? null,
+        geofenceName: matchedGeofence?.name ?? null,
+      };
+    });
   }
 
   /**
    * Batch upload locations
    */
   async batchUploadLocations(batchData: BatchLocation[]): Promise<void> {
-    // Validate all locations before storing
-    batchData.forEach(({ locations }) => {
-      locations.forEach(validateLocation);
+    const entries: Array<{ accountId: string; location: Location }> = [];
+
+    batchData.forEach(({ userId, locations }) => {
+      if (!userId) {
+        throw new AppError('VALIDATION_ERROR', 400, 'userId is required for each batch entry');
+      }
+
+      locations.forEach((location) => {
+        validateLocation(location);
+        entries.push({ accountId: userId, location });
+      });
     });
 
-    presenceStore.batchUploadLocations(batchData);
+    await this.store.createLocations(entries);
   }
 
   /**
    * Store BLE detection data
    */
-  async storeBLEDetection(detection: BLEDetection): Promise<void> {
+  async storeBLEDetection(accountId: string, detection: BLEDetection): Promise<void> {
     if (!detection.deviceId || !detection.seenBy) {
-      throw new Error('Invalid BLE detection: deviceId and seenBy are required');
+      throw new AppError('VALIDATION_ERROR', 400, 'deviceId and seenBy are required');
     }
-    presenceStore.storeBLEDetection(detection);
+
+    await this.store.createBleDetection(accountId, detection);
   }
 
   /**
@@ -54,35 +99,67 @@ export class PresenceService {
   async checkGeofence(request: GeofenceCheckRequest): Promise<GeofenceCheckResponse> {
     const { userId, zoneName } = request;
 
-    const zone = SAMPLE_GEOFENCES[zoneName];
+    if (!userId) {
+      throw new AppError('VALIDATION_ERROR', 400, 'userId is required');
+    }
+
+    const zoneRecord = await this.store.findGeofenceByName(zoneName);
+    if (!zoneRecord || !zoneRecord.isActive) {
+      throw new AppError('GEOFENCE_NOT_FOUND', 404, `Geofence zone '${zoneName}' not found`);
+    }
+
+    const zone = extractGeofenceCircle(zoneRecord);
     if (!zone) {
-      throw new Error(`Geofence zone '${zoneName}' not found`);
+      throw new AppError('INVALID_GEOFENCE', 400, `Geofence '${zoneName}' is not circle-based`);
     }
 
     const currentLocation = await this.getCurrentLocation(userId);
     if (!currentLocation) {
-      throw new Error(`No location data found for user ${userId}`);
+      throw new AppError('LOCATION_NOT_FOUND', 404, `No location data found for user ${userId}`);
     }
 
     const inside = isInsideGeofence(currentLocation, zone);
 
     return {
       inside,
-      zone: zoneName
+      zone: zoneName,
+      geofenceId: zone.id,
+      lastSeen: new Date(currentLocation.timestamp).toISOString(),
     };
+  }
+
+  async getPresenceSummary(userId: string): Promise<PresenceSummary> {
+    const currentLocation = await this.getCurrentLocation(userId);
+
+    return {
+      studentId: userId,
+      isPresent:
+        currentLocation !== null && Date.now() - currentLocation.timestamp <= PRESENCE_FRESHNESS_MS,
+      lastSeen: currentLocation ? new Date(currentLocation.timestamp).toISOString() : null,
+    };
+  }
+
+  async getPresenceTrail(userId: string): Promise<PresenceTrailEntry[]> {
+    const history = await this.getLocationHistory(userId);
+
+    return history.map((location) => ({
+      checkpoint:
+        location.geofenceName ?? `Lat ${location.lat.toFixed(4)}, Lng ${location.lng.toFixed(4)}`,
+      timestamp: new Date(location.timestamp).toISOString(),
+    }));
   }
 
   /**
    * Get all BLE logs (admin/debug function)
    */
   async getBLELogs(): Promise<BLEDetection[]> {
-    return presenceStore.getBLELogs();
+    return this.store.getBleLogs();
   }
 
-  /**
-   * Clear all data (for testing purposes)
-   */
-  async clearAllData(): Promise<void> {
-    presenceStore.clearAll();
+  private async getActiveGeofenceCircles() {
+    const geofences = await this.store.listActiveGeofences();
+    return geofences
+      .map((geofence) => extractGeofenceCircle(geofence))
+      .filter((geofence): geofence is NonNullable<typeof geofence> => geofence !== null);
   }
 }

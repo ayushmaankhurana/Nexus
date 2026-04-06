@@ -1,4 +1,19 @@
-// utils.ts - Utility functions for Presence & Location Service
+import { Prisma } from '@prisma/client';
+import { Location } from './model';
+
+type CoordinateObject = {
+  lat: number;
+  lng: number;
+};
+
+export type GeofenceCircle = {
+  id: string;
+  name: string;
+  type: string;
+  radius: number;
+  lat: number;
+  lng: number;
+};
 
 /**
  * Calculate distance between two points using Haversine formula
@@ -32,12 +47,50 @@ export function isInsideGeofence(userLocation: {lat: number, lng: number}, zone:
   return distance <= zone.radius;
 }
 
-// Sample geofences for the campus
-export const SAMPLE_GEOFENCES: { [key: string]: { lat: number; lng: number; radius: number } } = {
-  'Classroom A': { lat: 28.6139, lng: 77.2090, radius: 50 }, // Connaught Place, Delhi (example)
-  'Gate 1': { lat: 28.6140, lng: 77.2091, radius: 30 },
-  'Parking Zone': { lat: 28.6141, lng: 77.2092, radius: 100 }
-};
+function isCoordinateObject(value: Prisma.JsonValue): value is CoordinateObject {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.lat === 'number' && typeof candidate.lng === 'number';
+}
+
+export function extractGeofenceCircle(geofence: {
+  id: string;
+  name: string;
+  type: string;
+  radius: number | null;
+  coordinates: Prisma.JsonValue;
+}): GeofenceCircle | null {
+  if (!geofence.radius || !isCoordinateObject(geofence.coordinates)) {
+    return null;
+  }
+
+  return {
+    id: geofence.id,
+    name: geofence.name,
+    type: geofence.type,
+    radius: geofence.radius,
+    lat: geofence.coordinates.lat,
+    lng: geofence.coordinates.lng,
+  };
+}
+
+export function findContainingGeofence(location: Location, geofences: GeofenceCircle[]): GeofenceCircle | null {
+  let bestMatch: GeofenceCircle | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const geofence of geofences) {
+    const distance = haversineDistance(location.lat, location.lng, geofence.lat, geofence.lng);
+    if (distance <= geofence.radius && distance < bestDistance) {
+      bestDistance = distance;
+      bestMatch = geofence;
+    }
+  }
+
+  return bestMatch;
+}
 
 /**
  * Validate location data
@@ -53,6 +106,9 @@ export function validateLocation(location: any): boolean {
   }
   if (location.lng < -180 || location.lng > 180) {
     throw new Error('Invalid longitude: must be between -180 and 180');
+  }
+  if (typeof location.timestamp !== 'number' || Number.isNaN(location.timestamp)) {
+    throw new Error('Invalid timestamp: must be a unix timestamp in milliseconds');
   }
   return true;
 }
