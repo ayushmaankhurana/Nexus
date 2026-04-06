@@ -199,6 +199,7 @@ export class AuthService {
     const payload = { sub: account.studentId, deviceId, role: account.role };
     const accessToken = this.signJwt(payload, '15m');
     const refreshToken = this.signJwt({ ...payload, isRefresh: true }, '7d');
+    const displayName = (await this.store.getAccountDisplayName(account.studentId)) ?? account.rollNumber;
 
     // AWAIT the session creation in the DB
     const session = await this.store.createSession(account.studentId, deviceId, accessToken, refreshToken);
@@ -210,6 +211,7 @@ export class AuthService {
       tokenType: 'Bearer',
       user: {
         id: account.studentId,
+        name: displayName,
         rollNumber: account.rollNumber,
         email: account.email,
         role: account.role,
@@ -260,6 +262,7 @@ export class AuthService {
     const payload = { sub: studentId, deviceId: newDeviceId, role: account.role };
     const accessToken = this.signJwt(payload, '15m');
     const refreshToken = this.signJwt({ ...payload, isRefresh: true }, '7d');
+    const displayName = (await this.store.getAccountDisplayName(account.studentId)) ?? account.rollNumber;
 
     // AWAIT the atomic switch operation
     await this.store.switchDevice(studentId, oldDeviceId, newDeviceId, accessToken, refreshToken);
@@ -271,6 +274,7 @@ export class AuthService {
       tokenType: 'Bearer',
       user: {
         id: account.studentId,
+        name: displayName,
         rollNumber: account.rollNumber,
         email: account.email,
         role: account.role,
@@ -303,6 +307,7 @@ export class AuthService {
     const payload = { sub: account.studentId, deviceId, role: account.role };
     const newAccessToken = this.signJwt(payload, '15m');
     const newRefreshToken = this.signJwt({ ...payload, isRefresh: true }, '7d');
+    const displayName = (await this.store.getAccountDisplayName(account.studentId)) ?? account.rollNumber;
 
     // 4. Atomically replace the old session with the new one
     // We use switchDevice here because it perfectly handles deleting the old tokens and inserting new ones for the same device
@@ -321,6 +326,7 @@ export class AuthService {
       tokenType: 'Bearer',
       user: {
         id: account.studentId,
+        name: displayName,
         rollNumber: account.rollNumber,
         email: account.email,
         role: account.role,

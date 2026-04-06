@@ -278,6 +278,34 @@ export class PrismaAuthStore {
     };
   }
 
+  async getAccountDisplayName(studentId: string): Promise<string | null> {
+    const account = await this.prisma.account.findUnique({
+      where: { id: studentId },
+      include: {
+        profile: true,
+        facultyProfile: true,
+      },
+    });
+
+    if (!account) {
+      return null;
+    }
+
+    const facultyName = account.facultyProfile
+      ? `${account.facultyProfile.firstName} ${account.facultyProfile.lastName}`.trim()
+      : '';
+
+    if (facultyName) {
+      return facultyName;
+    }
+
+    const profileName = account.profile
+      ? `${account.profile.firstName} ${account.profile.lastName}`.trim()
+      : '';
+
+    return profileName || account.rollNumber;
+  }
+
   async listStudents(filters: ListStudentsFilters = {}): Promise<StudentListResult> {
     const page = Math.max(1, filters.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, filters.pageSize ?? 20));

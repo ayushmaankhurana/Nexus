@@ -37,6 +37,7 @@ export const AuthResponseSchema = z.object({
   tokenType: z.literal('Bearer'),
   user: z.object({
     id: z.string(),
+    name: z.string().optional(),
     rollNumber: z.string(),
     email: z.string().email(),
     // Replace z.literal('student') with this:

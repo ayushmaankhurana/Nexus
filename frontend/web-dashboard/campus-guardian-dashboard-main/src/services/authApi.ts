@@ -19,7 +19,7 @@ function normalizeAuthResponse(backendResponse: AuthResponse): AuthResponse {
     // Backend returns id as studentId, frontend expects id
     id: user.id || user.studentId || `user-${Date.now()}`,
     // Backend doesn't return name; construct from rollNumber, email, or use default
-    name: user.name || user.studentId || user.email || "User",
+    name: user.name || user.rollNumber || user.studentId || user.email || "User",
     // Backend may not return status; default to 'active'
     status: user.status || "active",
     role: normalizeUserRole(user.role),
