@@ -7,9 +7,56 @@ import {
   CreateStudentRequestSchema,
 } from '../schemas/auth';
 import { PrismaAuthStore } from '../stores/prisma-auth-store';
+import { z } from 'zod';
+
+const listStudentsQuerySchema = z.object({
+  q: z.string().trim().optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().max(100).optional(),
+});
 
 const adminStudentsRoute: FastifyPluginAsync = async (fastify) => {
   const store = new PrismaAuthStore();
+
+  fastify.get('/admin/students', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      await request.jwtVerify();
+
+      const user = request.user as { sub: string; role?: string };
+
+      if (!user?.role || user.role.toUpperCase() !== 'ADMIN') {
+        throw new AppError('FORBIDDEN', 403, 'Admin access required');
+      }
+
+      const query = listStudentsQuerySchema.parse(request.query);
+      const result = await store.listStudents({
+        query: query.q,
+        page: query.page,
+        pageSize: query.pageSize,
+      });
+
+      return reply.code(200).send({
+        data: result.data.map((student) => ({
+          id: student.id,
+          name: `${student.firstName} ${student.lastName}`.trim() || student.rollNumber,
+          email: student.email,
+          role: student.role,
+          status: student.status,
+          studentId: student.rollNumber,
+          department: undefined,
+          createdAt: student.createdAt,
+          lastLogin: undefined,
+          rfidTag: student.rfidTag,
+        })),
+        total: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+        totalPages: result.totalPages,
+      });
+    } catch (error) {
+      return handleError(reply, error);
+    }
+  });
 
   fastify.post('/admin/students', async (request: FastifyRequest, reply: FastifyReply) => {
     try {

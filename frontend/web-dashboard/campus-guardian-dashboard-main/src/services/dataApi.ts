@@ -1,9 +1,116 @@
 import { apiGet, apiPost, apiPatch } from "./apiClient";
-import type { User, AttendanceRecord, AttendanceSummary, AccessEvent, Incident, Alert, PresenceRecord, TracePoint, SupportIssue, ActivityEvent, PaginatedResponse, AccessRequest } from "@/types";
+import { normalizeUserRole, type User, type AttendanceRecord, type AttendanceSummary, type AccessEvent, type Incident, type Alert, type PresenceRecord, type TracePoint, type SupportIssue, type ActivityEvent, type PaginatedResponse, type AccessRequest } from "@/types";
 import * as mock from "@/mocks/data";
 
 const USE_MOCK = true;
+const USE_MOCK_STUDENT_LOOKUP = false;
 const delay = (ms = 500) => new Promise((r) => setTimeout(r, ms));
+
+type BackendStudent = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: User["status"];
+  studentId: string;
+  department?: string;
+  createdAt: string;
+  lastLogin?: string;
+  rfidTag?: string | null;
+};
+
+type BackendStudentProfile = {
+  id: string;
+  rollNumber: string;
+  email: string;
+  role: string;
+  status: string;
+  firstName: string;
+  lastName: string;
+  rfidTag: string | null;
+};
+
+type BackendAttendanceRecord = {
+  id: string;
+  accountId: string;
+  studentName: string;
+  rollNumber: string;
+  courseCode: string;
+  courseTitle: string;
+  room: string;
+  scheduledDate: string;
+  timestamp: string;
+  status: string;
+};
+
+type BackendAccessHistory = {
+  studentId: string;
+  accessHistory: Array<{
+    id: string;
+    studentId: string;
+    studentName: string;
+    geofenceName: string;
+    timestamp: string;
+    action: string;
+    reason: string | null;
+  }>;
+  total: number;
+};
+
+function mapBackendStudent(student: BackendStudent): User {
+  return {
+    id: student.id,
+    name: student.name,
+    email: student.email,
+    role: normalizeUserRole(student.role),
+    status: student.status,
+    department: student.department,
+    studentId: student.studentId,
+    createdAt: student.createdAt,
+    lastLogin: student.lastLogin,
+  };
+}
+
+function mapBackendStudentProfile(profile: BackendStudentProfile): User {
+  return {
+    id: profile.id,
+    name: `${profile.firstName} ${profile.lastName}`.trim() || profile.rollNumber,
+    email: profile.email,
+    role: normalizeUserRole(profile.role),
+    status: profile.status as User["status"],
+    studentId: profile.rollNumber,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function mapBackendAttendanceRecord(record: BackendAttendanceRecord): AttendanceRecord {
+  const scheduledDate = new Date(record.scheduledDate).toISOString().split("T")[0];
+  const timestamp = new Date(record.timestamp);
+
+  return {
+    id: record.id,
+    studentId: record.accountId,
+    studentName: record.studentName,
+    date: scheduledDate,
+    status: record.status.toLowerCase() as AttendanceRecord["status"],
+    checkIn: timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    course: `${record.courseCode} - ${record.courseTitle}`,
+    location: record.room,
+  };
+}
+
+function mapBackendAccessHistory(response: BackendAccessHistory): AccessEvent[] {
+  return response.accessHistory.map((event) => ({
+    id: event.id,
+    studentId: event.studentId,
+    studentName: event.studentName,
+    checkpoint: event.geofenceName,
+    timestamp: event.timestamp,
+    status: event.action === "DENIED" ? "denied" : "allowed",
+    method: event.reason ?? "System Rule",
+    direction: event.action === "EXIT" ? "out" : "in",
+  }));
+}
 
 export const studentsApi = {
   async getMe(): Promise<User> {
@@ -11,16 +118,36 @@ export const studentsApi = {
     return apiGet("/students/me");
   },
   async getAll(params?: Record<string, string>): Promise<PaginatedResponse<User>> {
-    if (USE_MOCK) { await delay(); return { data: mock.mockStudents, total: mock.mockStudents.length, page: 1, pageSize: 20, totalPages: 1 }; }
-    return apiGet("/students", params);
+    if (USE_MOCK_STUDENT_LOOKUP) { await delay(); return { data: mock.mockStudents, total: mock.mockStudents.length, page: 1, pageSize: 20, totalPages: 1 }; }
+    const response = await apiGet<PaginatedResponse<BackendStudent>>("/admin/students", params);
+    return {
+      ...response,
+      data: response.data.map(mapBackendStudent),
+    };
   },
   async getById(id: string): Promise<User> {
-    if (USE_MOCK) { await delay(); return mock.mockStudents.find(s => s.id === id) || mock.mockStudentUser; }
-    return apiGet(`/students/${id}`);
+    if (USE_MOCK_STUDENT_LOOKUP) { await delay(); return mock.mockStudents.find(s => s.id === id) || mock.mockStudentUser; }
+    const response = await apiGet<BackendStudentProfile>(`/students/${id}/profile`);
+    return mapBackendStudentProfile(response);
   },
   async getActivity(id: string): Promise<ActivityEvent[]> {
     if (USE_MOCK) { await delay(); return mock.mockActivityEvents.filter(e => e.userId === id); }
     return apiGet(`/students/${id}/activity`);
+  },
+  async getAttendance(id: string): Promise<AttendanceRecord[]> {
+    const response = await apiGet<PaginatedResponse<BackendAttendanceRecord>>("/attendance/records", {
+      accountId: id,
+      page: "1",
+      pageSize: "5",
+    });
+    return response.data.map(mapBackendAttendanceRecord);
+  },
+  async getAccess(id: string): Promise<AccessEvent[]> {
+    const response = await apiGet<BackendAccessHistory>(`/access/${id}`, {
+      page: "1",
+      pageSize: "5",
+    });
+    return mapBackendAccessHistory(response);
   },
 };
 

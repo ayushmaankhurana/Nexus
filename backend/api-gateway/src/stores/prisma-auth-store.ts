@@ -12,6 +12,32 @@ type CreateStudentAccountInput = {
   activationToken: string;
 };
 
+type ListStudentsFilters = {
+  query?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+type StudentListItem = {
+  id: string;
+  rollNumber: string;
+  email: string;
+  role: string;
+  status: string;
+  firstName: string;
+  lastName: string;
+  rfidTag: string | null;
+  createdAt: string;
+};
+
+type StudentListResult = {
+  data: StudentListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
 export class PrismaAuthStore {
   private prisma: PrismaClient;
 
@@ -249,6 +275,56 @@ export class PrismaAuthStore {
       firstName: account.profile.firstName,
       lastName: account.profile.lastName,
       rfidTag: account.profile.rfidTag ?? null,
+    };
+  }
+
+  async listStudents(filters: ListStudentsFilters = {}): Promise<StudentListResult> {
+    const page = Math.max(1, filters.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, filters.pageSize ?? 20));
+    const skip = (page - 1) * pageSize;
+    const query = filters.query?.trim();
+
+    const where = {
+      role: 'STUDENT' as const,
+      ...(query
+        ? {
+            OR: [
+              { rollNumber: { contains: query, mode: 'insensitive' as const } },
+              { email: { contains: query, mode: 'insensitive' as const } },
+              { profile: { firstName: { contains: query, mode: 'insensitive' as const } } },
+              { profile: { lastName: { contains: query, mode: 'insensitive' as const } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [total, accounts] = await this.prisma.$transaction([
+      this.prisma.account.count({ where }),
+      this.prisma.account.findMany({
+        where,
+        include: { profile: true },
+        orderBy: [{ status: 'asc' }, { rollNumber: 'asc' }],
+        skip,
+        take: pageSize,
+      }),
+    ]);
+
+    return {
+      data: accounts.map((account) => ({
+        id: account.id,
+        rollNumber: account.rollNumber,
+        email: account.email,
+        role: account.role,
+        status: account.status.toLowerCase(),
+        firstName: account.profile?.firstName ?? '',
+        lastName: account.profile?.lastName ?? '',
+        rfidTag: account.profile?.rfidTag ?? null,
+        createdAt: account.createdAt.toISOString(),
+      })),
+      total,
+      page,
+      pageSize,
+      totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
     };
   }
 
