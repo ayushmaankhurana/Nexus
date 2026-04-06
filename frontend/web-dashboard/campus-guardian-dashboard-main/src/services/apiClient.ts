@@ -110,25 +110,27 @@ export async function apiGet<T>(path: string, params?: Record<string, string>): 
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  const hasBody = body !== undefined;
   const res = await fetch(`${ENV.apiUrl}${path}`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: hasBody ? JSON.stringify(body) : undefined,
   });
   return handleResponse<T>(res);
 }
 
 export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
+  const hasBody = body !== undefined;
   const res = await fetch(`${ENV.apiUrl}${path}`, {
     method: "PATCH",
     headers: {
-      "Content-Type": "application/json",
       ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: hasBody ? JSON.stringify(body) : undefined,
   });
   return handleResponse<T>(res);
 }

@@ -9,6 +9,7 @@ import access from './routes/access';
 import presence from './routes/presence';
 import incidents from './routes/incidents';
 import adminStudentsRoute from './routes/admin-students';
+import devReset from './routes/dev-reset';
 
 
 
@@ -97,6 +98,9 @@ export async function createApp(config?: any) {
   await app.register(presence);
   await app.register(incidents);
   await app.register(adminStudentsRoute);
+  if (process.env.NODE_ENV !== 'production' || process.env.DEMO_RESET_ENABLED === 'true') {
+    await app.register(devReset);
+  }
 
   return app;
 }

@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { authApi } from "@/services/authApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, Loader2, AlertCircle } from "lucide-react";
+import { Shield, Loader2, AlertCircle, DatabaseZap } from "lucide-react";
 
 export default function LoginPage() {
   const { login, isAuthenticated, user } = useAuth();
@@ -13,7 +14,9 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   if (isAuthenticated && user) {
     return <Navigate to="/dashboard" replace />;
@@ -34,8 +37,32 @@ export default function LoginPage() {
     }
   };
 
+  const handleResetDemo = async () => {
+    setError("");
+    setResetMessage("");
+    setResetLoading(true);
+
+    try {
+      const response = await authApi.resetDemoData();
+      setIdentifier("");
+      setPassword("");
+      setResetMessage(response.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Demo reset failed.";
+      setError(message);
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
+      <div className="absolute left-4 top-4">
+        <Button type="button" variant="outline" size="sm" className="gap-2" onClick={handleResetDemo} disabled={loading || resetLoading}>
+          {resetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <DatabaseZap className="h-4 w-4" />}
+          Reset Demo Data
+        </Button>
+      </div>
       <div className="w-full max-w-md animate-fade-in">
         <div className="flex flex-col items-center mb-8">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary mb-4">
@@ -56,6 +83,12 @@ export default function LoginPage() {
                 <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-md p-3">
                   <AlertCircle className="h-4 w-4 flex-shrink-0" />
                   {error}
+                </div>
+              )}
+              {resetMessage && (
+                <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-md p-3 border border-emerald-200">
+                  <DatabaseZap className="h-4 w-4 flex-shrink-0" />
+                  {resetMessage}
                 </div>
               )}
               <div className="space-y-2">

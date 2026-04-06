@@ -45,6 +45,14 @@ function normalizeAuthResponse(backendResponse: AuthResponse): AuthResponse {
 }
 
 export const authApi = {
+  async resetDemoData(): Promise<{ success: boolean; message: string; resetAt: string }> {
+    const response = await apiPost<{ success: boolean; message: string; resetAt: string }>("/dev/demo/reset");
+    setAuthToken(null);
+    localStorage.removeItem("nexus_user");
+    localStorage.removeItem("nexus_device_id");
+    return response;
+  },
+
   async login(identifier: string, password: string): Promise<AuthResponse> {
     if (USE_MOCK) {
       await new Promise((r) => setTimeout(r, 800));
