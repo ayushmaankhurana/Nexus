@@ -4,11 +4,9 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // url is removed from here!
+  url      = env("DATABASE_URL")
 }
 
-// ... keep your enums and models (Account, Session) exactly as they were ...
-// 1. Enums for strict type safety across the platform
 enum UserRole {
   STUDENT
   ADMIN
@@ -20,31 +18,61 @@ enum AccountStatus {
   ACTIVE
 }
 
-// 2. The Core Identity Model
-model Account {
-  id              String        @id @default(uuid())
-  rollNumber      String        @unique
-  email           String        @unique
-  password        String        // Note: We will hash this in the next step
-  role            UserRole      @default(STUDENT)
-  status          AccountStatus @default(PENDING)
-  activationToken String?       @unique
-  resetToken      String?       @unique
-  resetTokenExpiresAt DateTime?
-  
-  // Relations
-  sessions        Session[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  profile           StudentProfile?   // <-- ADD THIS
-  attendanceRecords AttendanceRecord[] // <-- ADD THIS
-  accessEvents      AccessEvent[]     // <-- ADD THIS
-  incidents       Incident[]
-
-  @@map("accounts") // Renames the table in Postgres to lowercase plural
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  FAILED
 }
 
-// 3. The Session & Device Binding Model
+enum AccessAction {
+  ENTRY
+  EXIT
+  DENIED
+}
+
+enum IncidentStatus {
+  OPEN
+  ASSIGNED
+  RESOLVED
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentSource {
+  MANUAL
+  ACCESS_DENIAL
+  ATTENDANCE_FAILURE
+}
+
+model Account {
+  id                  String             @id @default(uuid())
+  rollNumber          String             @unique
+  email               String             @unique
+  password            String
+  role                UserRole           @default(STUDENT)
+  status              AccountStatus      @default(PENDING)
+  activationToken     String?            @unique
+  resetToken          String?            @unique
+  resetTokenExpiresAt DateTime?
+
+  sessions            Session[]
+  profile             StudentProfile?
+  attendanceRecords   AttendanceRecord[]
+  accessEvents        AccessEvent[]
+  incidents           Incident[]
+
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@map("accounts")
+}
+
 model Session {
   id           String   @id @default(uuid())
   accountId    String
@@ -54,81 +82,75 @@ model Session {
   createdAt    DateTime @default(now())
   expiresAt    DateTime
 
-  // Relations
   account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  @@unique([accountId, deviceId]) // Enforces the "One device per account" logic at DB level
+  @@unique([accountId, deviceId])
   @@map("sessions")
 }
 
-// ... (Your existing Account and Session models stay here) ...
-
-// --- PROFILE EXTENSION ---
-// Keeps auth (Account) separate from physical student data
 model StudentProfile {
-  id          String   @id @default(uuid())
-  accountId   String   @unique
-  firstName   String
-  lastName    String
-  rfidTag     String?  @unique // For physical gate access
-  
-  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  
+  id         String  @id @default(uuid())
+  accountId  String  @unique
+  firstName  String
+  lastName   String
+  rfidTag    String? @unique
+
+  account    Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
   @@map("student_profiles")
 }
 
-// --- LOCATION & PRESENCE (Used by Person 4 & 5) ---
 model Geofence {
   id          String   @id @default(uuid())
-  name        String   @unique // e.g., "Main Gate", "CS Building"
-  type        String   // "BUILDING", "CLASSROOM", "PARKING"
-  coordinates Json     // Stores Polygon lat/long data
-  radius      Float?   // If using circular geofences
+  name        String   @unique
+  type        String
+  coordinates Json
+  radius      Float?
   isActive    Boolean  @default(true)
 
   @@map("geofences")
 }
 
-// --- ATTENDANCE (Used by Person 3) ---
 model AttendanceRecord {
-  id          String   @id @default(uuid())
+  id          String           @id @default(uuid())
   accountId   String
-  classId     String   // E.g., "CS-101"
-  timestamp   DateTime @default(now())
-  status      String   // "PRESENT", "LATE", "ABSENT"
-  
-  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  classId     String
+  timestamp   DateTime         @default(now())
+  status      AttendanceStatus
+
+  account     Account          @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@map("attendance_records")
 }
 
-// --- ACCESS CONTROL (Used by Person 5 & 6) ---
 model AccessEvent {
-  id          String   @id @default(uuid())
+  id          String       @id @default(uuid())
   accountId   String
   geofenceId  String
-  timestamp   DateTime @default(now())
-  action      String   // "ENTRY", "EXIT", "DENIED"
-  reason      String?  // E.g., "Out of hours", "Invalid RFID"
-  
-  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  // Note: We don't strictly relation Geofence here in case geofences are deleted, 
-  // but you could add a relation if you prefer strict integrity.
+  timestamp   DateTime     @default(now())
+  action      AccessAction
+  reason      String?
+
+  account     Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@map("access_events")
 }
 
 model Incident {
-  id          String   @id @default(uuid())
-  accountId   String
-  type        String
-  description String
-  status      String   @default("OPEN")
-  assignedTo  String?
-  createdAt   DateTime @default(now())
-  resolvedAt  DateTime?
+  id           String            @id @default(uuid())
+  accountId    String
+  title        String
+  type         String
+  description  String
+  source       IncidentSource    @default(MANUAL)
+  severity     IncidentSeverity  @default(MEDIUM)
+  status       IncidentStatus    @default(OPEN)
+  assignedTo   String?
+  resolvedAt   DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
-  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account      Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@map("incidents")
 }

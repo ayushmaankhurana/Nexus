@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatCard } from "@/components/shared/StatCard";
 import { SectionCard, PageHeader } from "@/components/shared/PageComponents";
@@ -7,20 +8,44 @@ import { Users, AlertTriangle, DoorOpen, CalendarCheck, ShieldAlert, Activity } 
 import { getDisplayName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { mockStudents, mockAlerts, mockIncidents, mockAccessEvents, mockAttendanceRecords, mockActivityEvents } from "@/mocks/data";
+import { mockStudents, mockAlerts, mockAccessEvents, mockAttendanceRecords, mockActivityEvents } from "@/mocks/data";
+import { incidentsApi } from "@/services/dataApi";
+import type { Incident } from "@/types";
 
 export default function AdminDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const response = await incidentsApi.getAll();
+        setIncidents(response.data || []);
+      } catch (error) {
+        console.error("Failed to load incidents", error);
+      }
+    };
+
+    load();
+  }, []);
+
   const activeStudents = mockStudents.filter(s => s.status === "active").length;
   const alertsToday = mockAlerts.filter(a => a.status === "unread").length;
   const deniedAccess = mockAccessEvents.filter(e => e.status === "denied").length;
   const anomalies = mockAttendanceRecords.filter(r => r.flagged).length;
-  const openIncidents = mockIncidents.filter(i => i.status !== "resolved" && i.status !== "closed").length;
+
+  const openIncidents = useMemo(
+    () => incidents.filter(i => i.status !== "resolved" && i.status !== "closed").length,
+    [incidents]
+  );
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Operations Dashboard" description={`Welcome, ${getDisplayName(user).split(" ")[0]}. Here's today's campus security overview.`} />
+      <PageHeader
+        title="Operations Dashboard"
+        description={`Welcome, ${getDisplayName(user).split(" ")[0]}. Here's today's campus security overview.`}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard title="Active Students" value={activeStudents} icon={Users} trend={{ value: 3, label: "this week" }} />
@@ -31,10 +56,18 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <SectionCard title="Recent Incidents" className="lg:col-span-2" actions={<Button variant="ghost" size="sm" onClick={() => navigate("/admin/incidents")}>View all</Button>}>
+        <SectionCard
+          title="Recent Incidents"
+          className="lg:col-span-2"
+          actions={<Button variant="ghost" size="sm" onClick={() => navigate("/admin/incidents")}>View all</Button>}
+        >
           <div className="space-y-3">
-            {mockIncidents.slice(0, 4).map(inc => (
-              <div key={inc.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/80 transition-colors cursor-pointer" onClick={() => navigate("/admin/incidents")}>
+            {incidents.slice(0, 4).map(inc => (
+              <div
+                key={inc.id}
+                className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/80 transition-colors cursor-pointer"
+                onClick={() => navigate("/admin/incidents")}
+              >
                 <ShieldAlert className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -42,10 +75,16 @@ export default function AdminDashboard() {
                     <StatusBadge variant={getStatusVariant(inc.severity)}>{inc.severity}</StatusBadge>
                     <StatusBadge variant={getStatusVariant(inc.status)}>{inc.status}</StatusBadge>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">{inc.location} • {new Date(inc.createdAt).toLocaleDateString()}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {inc.studentName || "Unknown"} • {new Date(inc.createdAt).toLocaleDateString()}
+                  </p>
                 </div>
               </div>
             ))}
+
+            {incidents.length === 0 && (
+              <p className="text-sm text-muted-foreground">No incidents found.</p>
+            )}
           </div>
         </SectionCard>
 
