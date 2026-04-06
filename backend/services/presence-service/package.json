@@ -1,0 +1,29 @@
+{
+  "name": "presence-location-service",
+  "version": "1.0.0",
+  "description": "Presence & Location Service for campus security system",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "presence",
+    "location",
+    "geofence",
+    "campus",
+    "security"
+  ],
+  "author": "Nexus Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
