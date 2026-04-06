@@ -1,6 +1,8 @@
 import { FastifyPluginAsync } from 'fastify';
+import { PresenceController } from '../services/presence/controller';
 
 const presence: FastifyPluginAsync = async (fastify) => {
+  // Existing endpoints (keeping for compatibility)
   fastify.get<{ Params: { studentId: string } }>(
     '/presence/:studentId',
     { onRequest: [fastify.authenticate] },
@@ -46,6 +48,50 @@ const presence: FastifyPluginAsync = async (fastify) => {
         trail: [],
       };
     }
+  );
+
+  // New Presence & Location Service endpoints
+
+  // POST /presence/update-location
+  fastify.post(
+    '/presence/update-location',
+    { onRequest: [fastify.authenticate] },
+    PresenceController.updateLocation
+  );
+
+  // GET /presence/current/:userId
+  fastify.get<{ Params: { userId: string } }>(
+    '/presence/current/:userId',
+    { onRequest: [fastify.authenticate] },
+    PresenceController.getCurrentLocation
+  );
+
+  // GET /presence/history/:userId
+  fastify.get<{ Params: { userId: string } }>(
+    '/presence/history/:userId',
+    { onRequest: [fastify.authenticate] },
+    PresenceController.getLocationHistory
+  );
+
+  // POST /presence/batch-upload
+  fastify.post(
+    '/presence/batch-upload',
+    { onRequest: [fastify.authenticate] },
+    PresenceController.batchUploadLocations
+  );
+
+  // POST /presence/ble-detection
+  fastify.post(
+    '/presence/ble-detection',
+    { onRequest: [fastify.authenticate] },
+    PresenceController.storeBLEDetection
+  );
+
+  // POST /presence/check-geofence
+  fastify.post(
+    '/presence/check-geofence',
+    { onRequest: [fastify.authenticate] },
+    PresenceController.checkGeofence
   );
 };
 

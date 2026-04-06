@@ -20,5 +20,21 @@
     "@types/node": "^20.0.0",
     "dotenv-cli": "^11.0.0",
     "typescript": "^5.0.0"
-  }
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ayushmaankhurana/Nexus.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ayushmaankhurana/Nexus/issues"
+  },
+  "homepage": "https://github.com/ayushmaankhurana/Nexus#readme"
 }
