@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { getDisplayName, getUserInitials } from "@/lib/utils";
+import { isAdminRole, normalizeUserRole } from "@/types";
 
 const studentNav = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -43,7 +44,7 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
 
-  const isAdmin = user?.role === "admin" || user?.role === "security";
+  const isAdmin = isAdminRole(user?.role);
   const navItems = isAdmin ? adminNav : studentNav;
 
   return (
@@ -120,8 +121,8 @@ export function AppSidebar() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{getDisplayName(user)}</p>
               <div className="flex items-center gap-1.5">
-                <StatusBadge variant={user.role === "admin" ? "info" : "default"} className="text-[10px] px-1.5 py-0">
-                  {user.role}
+                <StatusBadge variant={normalizeUserRole(user.role) === "ADMIN" ? "info" : "default"} className="text-[10px] px-1.5 py-0">
+                  {normalizeUserRole(user.role)}
                 </StatusBadge>
               </div>
             </div>

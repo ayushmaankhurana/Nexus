@@ -1,6 +1,6 @@
 import { apiPost } from "./apiClient";
 import { setAuthToken, getOrCreateDeviceId, getDeviceId } from "./apiClient";
-import type { AuthResponse } from "@/types";
+import { normalizeUserRole, type AuthResponse } from "@/types";
 import { mockStudentUser, mockAdminUser, mockSession } from "@/mocks/data";
 
 const USE_MOCK = false; // Toggle when backend is ready
@@ -22,6 +22,7 @@ function normalizeAuthResponse(backendResponse: AuthResponse): AuthResponse {
     name: user.name || user.studentId || user.email || "User",
     // Backend may not return status; default to 'active'
     status: user.status || "active",
+    role: normalizeUserRole(user.role),
     // Ensure studentId is set
     studentId: user.studentId || user.id,
     // Provide defaults for optional fields

@@ -45,11 +45,44 @@ export class ApiHttpError extends Error {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function parseApiError(body: unknown, status: number, statusText: string): ApiError {
+  if (isRecord(body) && isRecord(body.error)) {
+    return {
+      message:
+        typeof body.error.message === "string" && body.error.message.length > 0
+          ? body.error.message
+          : statusText,
+      code: typeof body.error.code === "string" ? body.error.code : undefined,
+      details: isRecord(body.error.details) ? (body.error.details as Record<string, string>) : undefined,
+      status,
+    };
+  }
+
+  if (isRecord(body)) {
+    return {
+      message:
+        typeof body.message === "string" && body.message.length > 0
+          ? body.message
+          : statusText,
+      code: typeof body.code === "string" ? body.code : undefined,
+      details: isRecord(body.details) ? (body.details as Record<string, string>) : undefined,
+      status,
+    };
+  }
+
+  return { message: statusText, status };
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let errorBody: ApiError;
     try {
-      errorBody = await response.json();
+      const rawBody = await response.json();
+      errorBody = parseApiError(rawBody, response.status, response.statusText);
     } catch {
       errorBody = { message: response.statusText, status: response.status };
     }

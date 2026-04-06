@@ -28,13 +28,14 @@ import AdminIncidents from "@/pages/admin/AdminIncidents";
 import AdminPresence from "@/pages/admin/AdminPresence";
 import AdminAlerts from "@/pages/admin/AdminAlerts";
 import AdminActivity from "@/pages/admin/AdminActivity";
+import { isAdminRole } from "@/types";
 
 const queryClient = new QueryClient();
 
 function DashboardRouter() {
   const { user } = useAuth();
   if (!user) return null;
-  const isAdmin = user.role === "admin" || user.role === "security";
+  const isAdmin = isAdminRole(user.role);
   return isAdmin ? <AdminDashboard /> : <StudentDashboard />;
 }
 
@@ -52,19 +53,19 @@ const App = () => (
 
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/dashboard" element={<DashboardRouter />} />
-              <Route path="/attendance" element={<ProtectedRoute allowedRoles={["student"]}><StudentAttendance /></ProtectedRoute>} />
-              <Route path="/access" element={<ProtectedRoute allowedRoles={["student"]}><StudentAccess /></ProtectedRoute>} />
-              <Route path="/alerts" element={<ProtectedRoute allowedRoles={["student"]}><StudentAlerts /></ProtectedRoute>} />
-              <Route path="/account" element={<ProtectedRoute allowedRoles={["student"]}><StudentAccount /></ProtectedRoute>} />
-              <Route path="/support" element={<ProtectedRoute allowedRoles={["student"]}><StudentSupport /></ProtectedRoute>} />
+              <Route path="/attendance" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentAttendance /></ProtectedRoute>} />
+              <Route path="/access" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentAccess /></ProtectedRoute>} />
+              <Route path="/alerts" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentAlerts /></ProtectedRoute>} />
+              <Route path="/account" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentAccount /></ProtectedRoute>} />
+              <Route path="/support" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentSupport /></ProtectedRoute>} />
 
-              <Route path="/admin/students" element={<ProtectedRoute allowedRoles={["admin", "security"]}><AdminStudents /></ProtectedRoute>} />
-              <Route path="/admin/attendance" element={<ProtectedRoute allowedRoles={["admin", "security"]}><AdminAttendance /></ProtectedRoute>} />
-              <Route path="/admin/access" element={<ProtectedRoute allowedRoles={["admin", "security"]}><AdminAccess /></ProtectedRoute>} />
-              <Route path="/admin/incidents" element={<ProtectedRoute allowedRoles={["admin", "security"]}><AdminIncidents /></ProtectedRoute>} />
-              <Route path="/admin/presence" element={<ProtectedRoute allowedRoles={["admin", "security"]}><AdminPresence /></ProtectedRoute>} />
-              <Route path="/admin/alerts" element={<ProtectedRoute allowedRoles={["admin", "security"]}><AdminAlerts /></ProtectedRoute>} />
-              <Route path="/admin/activity" element={<ProtectedRoute allowedRoles={["admin", "security"]}><AdminActivity /></ProtectedRoute>} />
+              <Route path="/admin/students" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY"]}><AdminStudents /></ProtectedRoute>} />
+              <Route path="/admin/attendance" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY"]}><AdminAttendance /></ProtectedRoute>} />
+              <Route path="/admin/access" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY"]}><AdminAccess /></ProtectedRoute>} />
+              <Route path="/admin/incidents" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY"]}><AdminIncidents /></ProtectedRoute>} />
+              <Route path="/admin/presence" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY"]}><AdminPresence /></ProtectedRoute>} />
+              <Route path="/admin/alerts" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY"]}><AdminAlerts /></ProtectedRoute>} />
+              <Route path="/admin/activity" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY"]}><AdminActivity /></ProtectedRoute>} />
 
               <Route path="/settings" element={<SettingsPage />} />
             </Route>

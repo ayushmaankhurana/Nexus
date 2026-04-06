@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import type { User, Session } from "@/types";
+import { normalizeUserRole, type User, type Session } from "@/types";
 import { authApi } from "@/services/authApi";
 import { getAuthToken } from "@/services/apiClient";
 
@@ -29,7 +29,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const savedUser = localStorage.getItem("nexus_user");
     if (token && savedUser) {
       try {
-        const user = JSON.parse(savedUser) as User;
+        const parsedUser = JSON.parse(savedUser) as User;
+        const user = {
+          ...parsedUser,
+          role: normalizeUserRole(parsedUser.role),
+        };
+        localStorage.setItem("nexus_user", JSON.stringify(user));
         setState({ user, session: null, isAuthenticated: true, isLoading: false });
       } catch {
         setState(s => ({ ...s, isLoading: false }));

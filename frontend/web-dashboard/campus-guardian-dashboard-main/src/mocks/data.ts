@@ -10,13 +10,13 @@ const daysAgo = (n: number) => { const d = new Date(now); d.setDate(d.getDate() 
 
 export const mockStudentUser: User = {
   id: "stu-001", name: "Amara Okonkwo", email: "amara.okonkwo@campus.edu",
-  role: "student", status: "active", department: "Computer Science",
+  role: "STUDENT", status: "active", department: "Computer Science",
   studentId: "CS-2024-0847", createdAt: "2024-01-15T08:00:00Z", lastLogin: fmt(daysAgo(0)),
 };
 
 export const mockAdminUser: User = {
   id: "adm-001", name: "Director James Osei", email: "j.osei@campus.edu",
-  role: "admin", status: "active", department: "Campus Security",
+  role: "ADMIN", status: "active", department: "Campus Security",
   createdAt: "2022-06-01T08:00:00Z", lastLogin: fmt(daysAgo(0)),
 };
 
@@ -28,13 +28,13 @@ export const mockSession: Session = {
 
 export const mockStudents: User[] = [
   mockStudentUser,
-  { id: "stu-002", name: "Kwame Mensah", email: "k.mensah@campus.edu", role: "student", status: "active", department: "Electrical Engineering", studentId: "EE-2024-0312", createdAt: "2024-01-15T08:00:00Z", lastLogin: fmt(daysAgo(1)) },
-  { id: "stu-003", name: "Fatima Al-Rashid", email: "f.alrashid@campus.edu", role: "student", status: "active", department: "Business Administration", studentId: "BA-2024-0156", createdAt: "2024-02-01T08:00:00Z", lastLogin: fmt(daysAgo(0)) },
-  { id: "stu-004", name: "David Kimani", email: "d.kimani@campus.edu", role: "student", status: "suspended", department: "Physics", studentId: "PH-2023-0934", createdAt: "2023-09-01T08:00:00Z", lastLogin: fmt(daysAgo(14)) },
-  { id: "stu-005", name: "Priya Sharma", email: "p.sharma@campus.edu", role: "student", status: "active", department: "Computer Science", studentId: "CS-2024-0291", createdAt: "2024-01-15T08:00:00Z", lastLogin: fmt(daysAgo(2)) },
-  { id: "stu-006", name: "Chen Wei Lin", email: "c.lin@campus.edu", role: "student", status: "active", department: "Mathematics", studentId: "MT-2023-0445", createdAt: "2023-09-01T08:00:00Z", lastLogin: fmt(daysAgo(0)) },
-  { id: "stu-007", name: "Oluwaseun Adeyemi", email: "o.adeyemi@campus.edu", role: "student", status: "inactive", department: "Chemistry", studentId: "CH-2023-0678", createdAt: "2023-09-01T08:00:00Z", lastLogin: fmt(daysAgo(30)) },
-  { id: "stu-008", name: "Maria Santos", email: "m.santos@campus.edu", role: "student", status: "active", department: "Electrical Engineering", studentId: "EE-2024-0198", createdAt: "2024-02-15T08:00:00Z", lastLogin: fmt(daysAgo(1)) },
+  { id: "stu-002", name: "Kwame Mensah", email: "k.mensah@campus.edu", role: "STUDENT", status: "active", department: "Electrical Engineering", studentId: "EE-2024-0312", createdAt: "2024-01-15T08:00:00Z", lastLogin: fmt(daysAgo(1)) },
+  { id: "stu-003", name: "Fatima Al-Rashid", email: "f.alrashid@campus.edu", role: "STUDENT", status: "active", department: "Business Administration", studentId: "BA-2024-0156", createdAt: "2024-02-01T08:00:00Z", lastLogin: fmt(daysAgo(0)) },
+  { id: "stu-004", name: "David Kimani", email: "d.kimani@campus.edu", role: "STUDENT", status: "suspended", department: "Physics", studentId: "PH-2023-0934", createdAt: "2023-09-01T08:00:00Z", lastLogin: fmt(daysAgo(14)) },
+  { id: "stu-005", name: "Priya Sharma", email: "p.sharma@campus.edu", role: "STUDENT", status: "active", department: "Computer Science", studentId: "CS-2024-0291", createdAt: "2024-01-15T08:00:00Z", lastLogin: fmt(daysAgo(2)) },
+  { id: "stu-006", name: "Chen Wei Lin", email: "c.lin@campus.edu", role: "STUDENT", status: "active", department: "Mathematics", studentId: "MT-2023-0445", createdAt: "2023-09-01T08:00:00Z", lastLogin: fmt(daysAgo(0)) },
+  { id: "stu-007", name: "Oluwaseun Adeyemi", email: "o.adeyemi@campus.edu", role: "STUDENT", status: "inactive", department: "Chemistry", studentId: "CH-2023-0678", createdAt: "2023-09-01T08:00:00Z", lastLogin: fmt(daysAgo(30)) },
+  { id: "stu-008", name: "Maria Santos", email: "m.santos@campus.edu", role: "STUDENT", status: "active", department: "Electrical Engineering", studentId: "EE-2024-0198", createdAt: "2024-02-15T08:00:00Z", lastLogin: fmt(daysAgo(1)) },
 ];
 
 export const mockAttendanceSummary: AttendanceSummary = {

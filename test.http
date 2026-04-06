@@ -166,6 +166,16 @@ Accept: application/json
 ### Save Token for security user
 @securityToken = {{securityLoginRequest.response.body.accessToken}}
 
+### 5. Logout active account from device A
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{securityToken}}",
+  "deviceId": "{{securityDevice}}"
+}
+
 ### Admin login for access audit endpoints
 # @name adminLoginRequest
 POST {{baseUrl}}/auth/login

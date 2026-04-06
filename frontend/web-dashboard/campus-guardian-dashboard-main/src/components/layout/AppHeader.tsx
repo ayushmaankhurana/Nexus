@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useLocation } from "react-router-dom";
 import { getDisplayName, getUserInitials } from "@/lib/utils";
+import { normalizeUserRole } from "@/types";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -54,8 +55,8 @@ export function AppHeader() {
           </div>
           <div className="hidden lg:block">
             <p className="text-sm font-medium leading-none">{getDisplayName(user)}</p>
-            <StatusBadge variant={user?.role === "admin" ? "info" : "default"} className="text-[10px] px-1.5 py-0 mt-0.5">
-              {user?.role}
+            <StatusBadge variant={normalizeUserRole(user?.role) === "ADMIN" ? "info" : "default"} className="text-[10px] px-1.5 py-0 mt-0.5">
+              {user ? normalizeUserRole(user.role) : "STUDENT"}
             </StatusBadge>
           </div>
         </div>

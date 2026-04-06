@@ -1,6 +1,8 @@
 import { FastifyPluginAsync } from 'fastify';
 
 const incidents: FastifyPluginAsync = async (fastify) => {
+  const isAdmin = (role?: string) => role?.toUpperCase() === 'ADMIN';
+
   fastify.get(
     '/incidents',
     { onRequest: [fastify.authenticate] },
@@ -8,7 +10,7 @@ const incidents: FastifyPluginAsync = async (fastify) => {
       const user = request.user;
 
       let incidents: any[] = [];
-      if (user.role === 'admin') {
+      if (isAdmin(user.role)) {
         // Return all incidents
         incidents = [];
       } else {

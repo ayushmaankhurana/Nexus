@@ -1,4 +1,25 @@
-export type UserRole = "student" | "admin" | "security";
+export const USER_ROLES = ["STUDENT", "ADMIN", "SECURITY", "FACULTY"] as const;
+
+export type UserRole = (typeof USER_ROLES)[number];
+
+export function normalizeUserRole(role?: string | null): UserRole {
+  const normalized = role?.toUpperCase();
+
+  switch (normalized) {
+    case "STUDENT":
+    case "ADMIN":
+    case "SECURITY":
+    case "FACULTY":
+      return normalized;
+    default:
+      return "STUDENT";
+  }
+}
+
+export function isAdminRole(role?: string | null): boolean {
+  const normalized = normalizeUserRole(role);
+  return normalized === "ADMIN" || normalized === "SECURITY";
+}
 
 export interface User {
   id: string;
