@@ -15,7 +15,7 @@ export interface Student {
 
 // Auth domain types
 export type AccountStatus = 'pending' | 'active';
-export type UserRole = 'student' | 'security' | 'admin';
+export type UserRole = 'STUDENT' | 'SECURITY' | 'ADMIN' | 'FACULTY';
 export interface StudentAccount {
   studentId: string;
   rollNumber: string;

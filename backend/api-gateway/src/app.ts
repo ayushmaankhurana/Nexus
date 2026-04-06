@@ -20,7 +20,7 @@ export async function createApp(config?: any) {
   // 1. CORS Configuration
   await app.register(cors, {
     origin: ['http://localhost:8080', 'http://localhost:5173'],
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   });
