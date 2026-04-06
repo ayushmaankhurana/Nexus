@@ -1,20 +1,57 @@
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatCard } from "@/components/shared/StatCard";
 import { SectionCard, PageHeader } from "@/components/shared/PageComponents";
 import { ActivityFeed } from "@/components/shared/ActivityFeed";
 import { StatusBadge, getStatusVariant } from "@/components/shared/StatusBadge";
+import { ErrorState, LoadingState } from "@/components/shared/StateComponents";
 import { Users, AlertTriangle, DoorOpen, CalendarCheck, ShieldAlert, Activity } from "lucide-react";
 import { getDisplayName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { mockStudents, mockAlerts, mockIncidents, mockAccessEvents, mockAttendanceRecords, mockActivityEvents } from "@/mocks/data";
+import { accessApi } from "@/services/dataApi";
+import { mockStudents, mockAlerts, mockIncidents, mockAttendanceRecords, mockActivityEvents } from "@/mocks/data";
+import type { AccessEvent } from "@/types";
 
 export default function AdminDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [accessEvents, setAccessEvents] = useState<AccessEvent[]>([]);
+  const [accessLoading, setAccessLoading] = useState(true);
+  const [accessError, setAccessError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAccessOverview() {
+      try {
+        setAccessLoading(true);
+        setAccessError(null);
+        const response = await accessApi.getAll({ page: "1", pageSize: "10" });
+        if (!cancelled) {
+          setAccessEvents(response.data);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setAccessError(loadError instanceof Error ? loadError.message : "Failed to load access overview.");
+        }
+      } finally {
+        if (!cancelled) {
+          setAccessLoading(false);
+        }
+      }
+    }
+
+    void loadAccessOverview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const activeStudents = mockStudents.filter(s => s.status === "active").length;
   const alertsToday = mockAlerts.filter(a => a.status === "unread").length;
-  const deniedAccess = mockAccessEvents.filter(e => e.status === "denied").length;
+  const deniedAccess = accessEvents.filter(e => e.status === "denied").length;
   const anomalies = mockAttendanceRecords.filter(r => r.flagged).length;
   const openIncidents = mockIncidents.filter(i => i.status !== "resolved" && i.status !== "closed").length;
 
@@ -25,7 +62,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard title="Active Students" value={activeStudents} icon={Users} trend={{ value: 3, label: "this week" }} />
         <StatCard title="Alerts Today" value={alertsToday} icon={AlertTriangle} />
-        <StatCard title="Denied Access" value={deniedAccess} icon={DoorOpen} />
+        <StatCard title="Denied Access" value={accessLoading ? "..." : deniedAccess} subtitle={accessError ? "Access feed unavailable" : "Live backend events"} icon={DoorOpen} />
         <StatCard title="Anomalies" value={anomalies} icon={CalendarCheck} />
         <StatCard title="Open Incidents" value={openIncidents} icon={ShieldAlert} />
       </div>
@@ -56,17 +93,24 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <SectionCard title="Recent Access Attempts">
-          <div className="space-y-2">
-            {mockAccessEvents.slice(0, 5).map(evt => (
-              <div key={evt.id} className="flex items-center justify-between text-sm py-2 border-b last:border-0">
-                <div>
-                  <p className="font-medium">{evt.studentName}</p>
-                  <p className="text-xs text-muted-foreground">{evt.checkpoint} • {evt.method}</p>
+          {accessError ? (
+            <ErrorState message={accessError} />
+          ) : accessLoading ? (
+            <LoadingState className="min-h-[200px]" />
+          ) : (
+            <div className="space-y-2">
+              {accessEvents.slice(0, 5).map(evt => (
+                <div key={evt.id} className="flex items-center justify-between text-sm py-2 border-b last:border-0">
+                  <div>
+                    <p className="font-medium">{evt.studentName || evt.rollNumber}</p>
+                    <p className="text-xs text-muted-foreground">{evt.checkpoint} • {evt.method}</p>
+                  </div>
+                  <StatusBadge variant={getStatusVariant(evt.status)}>{evt.status}</StatusBadge>
                 </div>
-                <StatusBadge variant={getStatusVariant(evt.status)}>{evt.status}</StatusBadge>
-              </div>
-            ))}
-          </div>
+              ))}
+              {accessEvents.length === 0 && <p className="text-sm text-muted-foreground">No access events are available yet.</p>}
+            </div>
+          )}
         </SectionCard>
 
         <SectionCard title="Attendance Anomalies">
