@@ -10,6 +10,8 @@ import { getDisplayName, getUserInitials } from "@/lib/utils";
 import { normalizeUserRole } from "@/types";
 
 const pageTitles: Record<string, string> = {
+  "/auth": "Login",
+  "/login": "Login",
   "/dashboard": "Dashboard",
   "/attendance": "My Attendance",
   "/access": "Access Status",

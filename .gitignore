@@ -149,3 +149,4 @@ mobile/**/ios/Pods/
 # *.http
 # *.restdist/
 **/dist/
+docker-compose.yml

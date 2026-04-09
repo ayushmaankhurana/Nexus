@@ -37,7 +37,7 @@ export function loadConfig(): Config {
     // Provide the dev fallback here at the source, never in the app logic
     jwtSecret: process.env.NODE_ENV === 'production' 
       ? process.env.JWT_SECRET 
-      : process.env.JWT_SECRET || 'nexus_super_secret_dev_key_2026_minimum_32_chars!', 
+      : process.env.JWT_SECRET || 'ha you thought lol', 
   });
 
   // 3. Fail FAST with a readable error if anything is missing
