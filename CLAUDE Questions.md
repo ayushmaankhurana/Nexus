@@ -110,4 +110,4 @@ UNSURE right now, need to ask department admin
 **Q27 — ERP student ID format:**
 The `externalStudentId` field being added to `StudentProfile` needs a format assumption. Is the ERP student ID a numeric string, a specific format like `YYYY-NNNN`, or free-form? Does it need to be globally unique or only unique within a year/department?
 
-The student roll no. and student email fields can be global fields but DO NOT take this answer as final. 
+The student roll no. (and possibly student email fields) can be global fields but DO NOT take this answer as final. 
