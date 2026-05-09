@@ -231,16 +231,20 @@ export async function seedDemoDatabase(prisma: PrismaClient): Promise<void> {
   // ── GEOFENCES ──────────────────────────────────────────────────────────────
   console.log('Creating campus geofences...');
 
-  const mainGate = await prisma.geofence.create({ data: { name: 'Main Campus Gate',    type: 'GATE',      coordinates: { lat: 28.4089, lng: 77.3178 }, radius: 50.0 } });
-  const backGate = await prisma.geofence.create({ data: { name: 'Back Campus Gate',    type: 'GATE',      coordinates: { lat: 28.4081, lng: 77.3169 }, radius: 45.0 } });
-                   await prisma.geofence.create({ data: { name: 'CS Building',         type: 'BUILDING',  coordinates: { lat: 28.4090, lng: 77.3181 }, radius: 80.0 } });
-  const cs101    = await prisma.geofence.create({ data: { name: 'CS-101 Lecture Hall', type: 'CLASSROOM', coordinates: { lat: 28.4090, lng: 77.3180 }, radius: 15.0 } });
-  const cs102    = await prisma.geofence.create({ data: { name: 'CS-102 Lecture Hall', type: 'CLASSROOM', coordinates: { lat: 28.4092, lng: 77.3183 }, radius: 15.0 } });
-  const cs103    = await prisma.geofence.create({ data: { name: 'CS-103 Lab',          type: 'CLASSROOM', coordinates: { lat: 28.4094, lng: 77.3186 }, radius: 18.0 } });
-  const parkingA = await prisma.geofence.create({ data: { name: 'Parking Zone A',      type: 'PARKING',   coordinates: { lat: 28.4084, lng: 77.3171 }, radius: 35.0 } });
-  const library  = await prisma.geofence.create({ data: { name: 'Central Library',     type: 'BUILDING',  coordinates: { lat: 28.4098, lng: 77.3190 }, radius: 40.0 } });
-  const canteen  = await prisma.geofence.create({ data: { name: 'Student Canteen',     type: 'CAFETERIA', coordinates: { lat: 28.4082, lng: 77.3174 }, radius: 25.0 } });
-  const sports   = await prisma.geofence.create({ data: { name: 'Sports Complex',      type: 'SPORTS',    coordinates: { lat: 28.4070, lng: 77.3162 }, radius: 60.0 } });
+  // Geofences are spread in different cardinal directions from campus centre (28.4090, 77.3180)
+  // so the map shows a 2-D campus layout instead of a diagonal line.
+  // Main/Back Gates on the N-S axis; CS block to the east; Library north-east;
+  // Canteen at centre; Parking + Sports to the south-west.
+  const mainGate = await prisma.geofence.create({ data: { name: 'Main Campus Gate',    type: 'GATE',      coordinates: { lat: 28.4072, lng: 77.3180 }, radius: 50.0 } });
+  const backGate = await prisma.geofence.create({ data: { name: 'Back Campus Gate',    type: 'GATE',      coordinates: { lat: 28.4110, lng: 77.3165 }, radius: 45.0 } });
+                   await prisma.geofence.create({ data: { name: 'CS Building',         type: 'BUILDING',  coordinates: { lat: 28.4091, lng: 77.3200 }, radius: 80.0 } });
+  const cs101    = await prisma.geofence.create({ data: { name: 'CS-101 Lecture Hall', type: 'CLASSROOM', coordinates: { lat: 28.4089, lng: 77.3198 }, radius: 15.0 } });
+  const cs102    = await prisma.geofence.create({ data: { name: 'CS-102 Lecture Hall', type: 'CLASSROOM', coordinates: { lat: 28.4092, lng: 77.3202 }, radius: 15.0 } });
+  const cs103    = await prisma.geofence.create({ data: { name: 'CS-103 Lab',          type: 'CLASSROOM', coordinates: { lat: 28.4094, lng: 77.3205 }, radius: 18.0 } });
+  const parkingA = await prisma.geofence.create({ data: { name: 'Parking Zone A',      type: 'PARKING',   coordinates: { lat: 28.4082, lng: 77.3158 }, radius: 35.0 } });
+  const library  = await prisma.geofence.create({ data: { name: 'Central Library',     type: 'BUILDING',  coordinates: { lat: 28.4105, lng: 77.3192 }, radius: 40.0 } });
+  const canteen  = await prisma.geofence.create({ data: { name: 'Student Canteen',     type: 'CAFETERIA', coordinates: { lat: 28.4090, lng: 77.3180 }, radius: 25.0 } });
+  const sports   = await prisma.geofence.create({ data: { name: 'Sports Complex',      type: 'SPORTS',    coordinates: { lat: 28.4068, lng: 77.3152 }, radius: 60.0 } });
 
   // ── COURSES, SECTIONS, GROUPS ──────────────────────────────────────────────
   console.log('Creating courses, sections, groups...');
@@ -425,42 +429,42 @@ export async function seedDemoDatabase(prisma: PrismaClient): Promise<void> {
     {
       accountId: allStudents[1].id, // Anjali CS21002
       points: [
-        { lat: 28.40892, lng: 77.31782, m: 545 }, // 08:35 IST — Main Gate
-        { lat: 28.40905, lng: 77.31815, m: 518 }, // 09:02 IST — CS Building
-        { lat: 28.40899, lng: 77.31802, m: 505 }, // 09:15 IST — CS-101
-        { lat: 28.40906, lng: 77.31814, m: 445 }, // 10:15 IST — CS Building
-        { lat: 28.40980, lng: 77.31899, m: 415 }, // 10:45 IST — Central Library
-        { lat: 28.40822, lng: 77.31744, m: 355 }, // 11:45 IST — Student Canteen
-        { lat: 28.40905, lng: 77.31815, m: 290 }, // 12:50 IST — CS Building
-        { lat: 28.40921, lng: 77.31832, m: 250 }, // 13:30 IST — CS-102
-        { lat: 28.40978, lng: 77.31897, m: 145 }, // 15:35 IST — Library
-        { lat: 28.40889, lng: 77.31778, m: 42  }, // 17:28 IST — Main Gate (heading out)
-        { lat: 28.40887, lng: 77.31775, m: 6   }, // now-6min   — near Main Gate
+        { lat: 28.40722, lng: 77.31803, m: 545 }, // 08:35 IST — Main Gate (south)
+        { lat: 28.40912, lng: 77.32003, m: 518 }, // 09:02 IST — CS Building (east)
+        { lat: 28.40891, lng: 77.31982, m: 505 }, // 09:15 IST — CS-101
+        { lat: 28.40908, lng: 77.31998, m: 445 }, // 10:15 IST — CS Building
+        { lat: 28.41051, lng: 77.31921, m: 415 }, // 10:45 IST — Central Library (north-east)
+        { lat: 28.40901, lng: 77.31801, m: 355 }, // 11:45 IST — Student Canteen (centre)
+        { lat: 28.40910, lng: 77.32001, m: 290 }, // 12:50 IST — CS Building
+        { lat: 28.40921, lng: 77.32022, m: 250 }, // 13:30 IST — CS-102
+        { lat: 28.41052, lng: 77.31922, m: 145 }, // 15:35 IST — Library
+        { lat: 28.40718, lng: 77.31798, m: 42  }, // 17:28 IST — Main Gate (heading out)
+        { lat: 28.40716, lng: 77.31796, m: 6   }, // now-6min   — near Main Gate
       ],
     },
     {
       accountId: allStudents[2].id, // Rohan CS21003
       points: [
-        { lat: 28.40815, lng: 77.31697, m: 525 }, // 08:30 IST — Back Gate
-        { lat: 28.40904, lng: 77.31812, m: 498 }, // 08:57 IST — CS Building
-        { lat: 28.40898, lng: 77.31804, m: 483 }, // 09:12 IST — CS-101
-        { lat: 28.40843, lng: 77.31754, m: 378 }, // 10:57 IST — Student Canteen
-        { lat: 28.40905, lng: 77.31813, m: 308 }, // 12:07 IST — CS Building
-        { lat: 28.40921, lng: 77.31831, m: 270 }, // 12:45 IST — CS-102
-        { lat: 28.40703, lng: 77.31627, m: 125 }, // 15:45 IST — Sports Complex
-        { lat: 28.40813, lng: 77.31694, m: 18  }, // 17:57 IST — Back Gate (exiting)
+        { lat: 28.41099, lng: 77.31651, m: 525 }, // 08:30 IST — Back Gate (north)
+        { lat: 28.40912, lng: 77.32002, m: 498 }, // 08:57 IST — CS Building (east)
+        { lat: 28.40890, lng: 77.31981, m: 483 }, // 09:12 IST — CS-101
+        { lat: 28.40902, lng: 77.31802, m: 378 }, // 10:57 IST — Student Canteen (centre)
+        { lat: 28.40911, lng: 77.32001, m: 308 }, // 12:07 IST — CS Building
+        { lat: 28.40921, lng: 77.32022, m: 270 }, // 12:45 IST — CS-102
+        { lat: 28.40681, lng: 77.31522, m: 125 }, // 15:45 IST — Sports Complex (south-west)
+        { lat: 28.41098, lng: 77.31648, m: 18  }, // 17:57 IST — Back Gate (exiting)
       ],
     },
     {
       accountId: allStudents[3].id, // Priya CS21004
       points: [
-        { lat: 28.40887, lng: 77.31778, m: 490 }, // 08:50 IST — Main Gate
-        { lat: 28.40902, lng: 77.31810, m: 460 }, // 09:20 IST — CS Building
-        { lat: 28.40977, lng: 77.31894, m: 415 }, // 10:05 IST — Library
-        { lat: 28.40820, lng: 77.31742, m: 340 }, // 11:20 IST — Canteen
-        { lat: 28.40903, lng: 77.31811, m: 260 }, // 12:40 IST — CS Building
-        { lat: 28.40976, lng: 77.31892, m: 170 }, // 14:10 IST — Library
-        { lat: 28.40889, lng: 77.31779, m: 38  }, // 17:37 IST — Main Gate (exit)
+        { lat: 28.40719, lng: 77.31800, m: 490 }, // 08:50 IST — Main Gate (south)
+        { lat: 28.40909, lng: 77.32001, m: 460 }, // 09:20 IST — CS Building (east)
+        { lat: 28.41052, lng: 77.31921, m: 415 }, // 10:05 IST — Library (north-east)
+        { lat: 28.40901, lng: 77.31801, m: 340 }, // 11:20 IST — Canteen (centre)
+        { lat: 28.40910, lng: 77.32002, m: 260 }, // 12:40 IST — CS Building
+        { lat: 28.41050, lng: 77.31919, m: 170 }, // 14:10 IST — Library
+        { lat: 28.40720, lng: 77.31800, m: 38  }, // 17:37 IST — Main Gate (exit)
       ],
     },
   ];
@@ -473,17 +477,17 @@ export async function seedDemoDatabase(prisma: PrismaClient): Promise<void> {
 
   // Feature B: Current positions for ~25 more students spread across geofences
   // Meera (index 4) and Kabir (index 5) are near CS-103 and CS-101 right now
-  presenceData.push({ accountId: allStudents[4].id, latitude: 28.40934, longitude: 77.31855, recordedAt: minsAgo(9) });  // Meera → CS-103
-  presenceData.push({ accountId: allStudents[5].id, latitude: 28.40898, longitude: 77.31803, recordedAt: minsAgo(12) }); // Kabir → CS-101
+  presenceData.push({ accountId: allStudents[4].id, latitude: 28.40941, longitude: 77.32052, recordedAt: minsAgo(9) });  // Meera → CS-103 (east)
+  presenceData.push({ accountId: allStudents[5].id, latitude: 28.40890, longitude: 77.31980, recordedAt: minsAgo(12) }); // Kabir → CS-101 (east)
 
   const currentPositionClusters: Array<{ lat: number; lng: number; delta: number; count: number; startIdx: number }> = [
-    { lat: 28.40899, lng: 77.31802, delta: 0.00007, count: 7,  startIdx: 6   }, // CS-101 cluster
-    { lat: 28.40921, lng: 77.31831, delta: 0.00007, count: 6,  startIdx: 13  }, // CS-102 cluster
-    { lat: 28.40934, lng: 77.31855, delta: 0.00007, count: 5,  startIdx: 19  }, // CS-103 cluster
-    { lat: 28.40979, lng: 77.31897, delta: 0.00015, count: 5,  startIdx: 24  }, // Library cluster
-    { lat: 28.40821, lng: 77.31743, delta: 0.00010, count: 5,  startIdx: 29  }, // Canteen cluster
-    { lat: 28.40841, lng: 77.31715, delta: 0.00012, count: 4,  startIdx: 34  }, // Parking cluster
-    { lat: 28.40889, lng: 77.31778, delta: 0.00015, count: 5,  startIdx: 38  }, // Main Gate cluster
+    { lat: 28.40890, lng: 77.31982, delta: 0.00007, count: 7,  startIdx: 6   }, // CS-101 cluster (east)
+    { lat: 28.40921, lng: 77.32021, delta: 0.00007, count: 6,  startIdx: 13  }, // CS-102 cluster (east)
+    { lat: 28.40941, lng: 77.32051, delta: 0.00007, count: 5,  startIdx: 19  }, // CS-103 cluster (east)
+    { lat: 28.41051, lng: 77.31921, delta: 0.00015, count: 5,  startIdx: 24  }, // Library cluster (north-east)
+    { lat: 28.40901, lng: 77.31800, delta: 0.00010, count: 5,  startIdx: 29  }, // Canteen cluster (centre)
+    { lat: 28.40821, lng: 77.31581, delta: 0.00012, count: 4,  startIdx: 34  }, // Parking cluster (west)
+    { lat: 28.40721, lng: 77.31801, delta: 0.00015, count: 5,  startIdx: 38  }, // Main Gate cluster (south)
   ];
 
   for (const cluster of currentPositionClusters) {
@@ -504,8 +508,8 @@ export async function seedDemoDatabase(prisma: PrismaClient): Promise<void> {
     const si = 45 + i;
     presenceData.push({
       accountId:  allStudents[si].id,
-      latitude:   jitter(28.40889, 0.0003, si * 13),
-      longitude:  jitter(77.31780, 0.0003, si * 17),
+      latitude:   jitter(28.40900, 0.0003, si * 13),
+      longitude:  jitter(77.31800, 0.0003, si * 17),
       recordedAt: minsAgo(240 + i * 30),
     });
   }

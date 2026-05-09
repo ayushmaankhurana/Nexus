@@ -824,13 +824,11 @@ Content-Type: application/json
 ### Expected: 200 { success: true, message: "Demo data reset...", resetAt }
 POST {{baseUrl}}/dev/demo/reset
 x-demo-secret: nexus-demo-2026
-Content-Type: application/json
 Accept: application/json
 
 ### Demo reset — missing secret header should return 403
 ### Expected: 403 { error: { code: "FORBIDDEN" } }
 POST {{baseUrl}}/dev/demo/reset
-Content-Type: application/json
 Accept: application/json
 
 # ==========================================
