@@ -20,6 +20,7 @@ enum UserRole {
 enum AccountStatus {
   PENDING
   ACTIVE
+  SUSPENDED
 }
 
 enum AccessAction {

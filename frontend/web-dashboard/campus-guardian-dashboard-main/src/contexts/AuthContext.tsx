@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { normalizeUserRole, type User, type Session } from "@/types";
 import { authApi } from "@/services/authApi";
-import { getAuthToken } from "@/services/apiClient";
+import { apiGet, getAuthToken, setAuthToken } from "@/services/apiClient";
 
 interface AuthState {
   user: User | null;
@@ -27,21 +27,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const token = getAuthToken();
     const savedUser = localStorage.getItem("nexus_user");
-    if (token && savedUser) {
-      try {
+
+    if (!token || !savedUser) {
+      setState(s => ({ ...s, isLoading: false }));
+      return;
+    }
+
+    // Verify stored token against backend on boot
+    apiGet<{ id: string; rollNumber: string; email: string; role: string; status: string; firstName: string; lastName: string }>("/students/me")
+      .then((profile) => {
+        // Use fresh profile data from backend to update stored user
         const parsedUser = JSON.parse(savedUser) as User;
-        const user = {
+        const user: User = {
           ...parsedUser,
-          role: normalizeUserRole(parsedUser.role),
+          id: profile.id,
+          email: profile.email,
+          role: normalizeUserRole(profile.role),
+          status: (profile.status as User["status"]) || parsedUser.status,
+          name: parsedUser.name || `${profile.firstName} ${profile.lastName}`.trim() || profile.rollNumber,
+          studentId: profile.rollNumber,
         };
         localStorage.setItem("nexus_user", JSON.stringify(user));
         setState({ user, session: null, isAuthenticated: true, isLoading: false });
-      } catch {
-        setState(s => ({ ...s, isLoading: false }));
-      }
-    } else {
-      setState(s => ({ ...s, isLoading: false }));
-    }
+      })
+      .catch(() => {
+        // Token is invalid or network error — clear auth state
+        setAuthToken(null);
+        localStorage.removeItem("nexus_user");
+        setState({ user: null, session: null, isAuthenticated: false, isLoading: false });
+      });
   }, []);
 
   const login = useCallback(async (identifier: string, password: string) => {
@@ -55,9 +69,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ user: null, session: null, isAuthenticated: false, isLoading: false });
   }, []);
 
+  // Activation does NOT auto-login — backend returns {account}, not tokens.
+  // The caller (ActivationPage) should redirect to /login after this resolves.
   const activate = useCallback(async (token: string, password: string) => {
-    const res = await authApi.activateAccount(token, password);
-    setState({ user: res.user, session: res.session || null, isAuthenticated: true, isLoading: false });
+    await authApi.activateAccount(token, password);
+    // Do not set authenticated state here; user must log in separately.
   }, []);
 
   const switchDevice = useCallback(async (deviceId: string) => {

@@ -3,6 +3,7 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { PresenceService } from './service';
 import { Location, BLEDetection, BatchLocation, GeofenceCheckRequest } from './model';
+import { getPrismaClient } from '../../lib/prisma';
 
 const presenceService = new PresenceService();
 
@@ -53,6 +54,10 @@ function isPrivileged(request: FastifyRequest): boolean {
   return hasAnyRole(request.user.role, ['ADMIN', 'SECURITY']);
 }
 
+function isFaculty(request: FastifyRequest): boolean {
+  return hasAnyRole(request.user.role, ['FACULTY']);
+}
+
 function resolveBodyUserId(request: FastifyRequest, requestedUserId?: string): string {
   if (isPrivileged(request)) {
     return requestedUserId ?? request.user.sub;
@@ -62,7 +67,7 @@ function resolveBodyUserId(request: FastifyRequest, requestedUserId?: string): s
 }
 
 function assertCanReadUser(request: FastifyRequest, requestedUserId: string): string {
-  if (requestedUserId === request.user.sub || isPrivileged(request)) {
+  if (requestedUserId === request.user.sub || isPrivileged(request) || isFaculty(request)) {
     return requestedUserId;
   }
 
@@ -71,8 +76,37 @@ function assertCanReadUser(request: FastifyRequest, requestedUserId: string): st
 
 export class PresenceController {
   static async getPresenceOverview(request: FastifyRequest, reply: FastifyReply) {
-    if (!isPrivileged(request)) {
-      throw new AppError('FORBIDDEN', 403, 'Admin or security access required');
+    const privileged = isPrivileged(request);
+    const faculty = isFaculty(request);
+
+    if (!privileged && !faculty) {
+      throw new AppError('FORBIDDEN', 403, 'Admin, security, or faculty access required');
+    }
+
+    if (faculty && !privileged) {
+      // Faculty: scope to students in their assigned sections
+      const prisma = getPrismaClient();
+      const assignments = await prisma.facultyAssignment.findMany({
+        where: { facultyAccountId: request.user.sub },
+        select: { sectionId: true },
+      });
+
+      const sectionIds = assignments
+        .map((a: { sectionId: string | null }) => a.sectionId)
+        .filter((id: string | null): id is string => id !== null);
+
+      if (sectionIds.length === 0) {
+        return reply.code(200).send({ records: [], geofences: [] });
+      }
+
+      const memberships = await prisma.studentGroupMembership.findMany({
+        where: { group: { sectionId: { in: sectionIds } } },
+        select: { accountId: true },
+      });
+
+      const studentIds = [...new Set(memberships.map((m: { accountId: string }) => m.accountId))];
+      const overview = await presenceService.getPresenceOverviewForStudents(studentIds);
+      return reply.code(200).send(overview);
     }
 
     const overview = await presenceService.getPresenceOverview();

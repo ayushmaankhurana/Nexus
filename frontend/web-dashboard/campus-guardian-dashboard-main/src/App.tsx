@@ -28,7 +28,7 @@ import AdminIncidents from "@/pages/admin/AdminIncidents";
 import AdminPresence from "@/pages/admin/AdminPresence";
 import AdminAlerts from "@/pages/admin/AdminAlerts";
 import AdminActivity from "@/pages/admin/AdminActivity";
-import { isAdminRole } from "@/types";
+import { isAdminRole, isFacultyRole } from "@/types";
 
 const queryClient = new QueryClient();
 
@@ -36,7 +36,8 @@ function DashboardRouter() {
   const { user } = useAuth();
   if (!user) return null;
   const isAdmin = isAdminRole(user.role);
-  return isAdmin ? <AdminDashboard /> : <StudentDashboard />;
+  const isFaculty = isFacultyRole(user.role);
+  return isAdmin || isFaculty ? <AdminDashboard /> : <StudentDashboard />;
 }
 
 const App = () => (
@@ -60,10 +61,10 @@ const App = () => (
               <Route path="/support" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentSupport /></ProtectedRoute>} />
 
               <Route path="/admin/students" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY"]}><AdminStudents /></ProtectedRoute>} />
-              <Route path="/admin/attendance" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY"]}><AdminAttendance /></ProtectedRoute>} />
+              <Route path="/admin/attendance" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY", "FACULTY"]}><AdminAttendance /></ProtectedRoute>} />
               <Route path="/admin/access" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY"]}><AdminAccess /></ProtectedRoute>} />
               <Route path="/admin/incidents" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY"]}><AdminIncidents /></ProtectedRoute>} />
-              <Route path="/admin/presence" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY"]}><AdminPresence /></ProtectedRoute>} />
+              <Route path="/admin/presence" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY", "FACULTY"]}><AdminPresence /></ProtectedRoute>} />
               <Route path="/admin/alerts" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY"]}><AdminAlerts /></ProtectedRoute>} />
               <Route path="/admin/activity" element={<ProtectedRoute allowedRoles={["ADMIN", "SECURITY"]}><AdminActivity /></ProtectedRoute>} />
 

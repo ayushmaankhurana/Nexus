@@ -31,9 +31,9 @@ Each step is a self-contained milestone with a clear entry condition (what must 
 | Scope `GET /attendance/records` to assigned sections for FACULTY | `attendance-service.ts`, `routes/attendance.ts` | Faculty currently see all campus attendance records |
 | Scope `GET /presence/overview` to assigned students for FACULTY | `presence/controller.ts`, `presence/service.ts` | Faculty currently get a 403 or see all students |
 | Invalidate **all** refresh tokens across **all** devices on password reset | `auth-service.ts`, `stores/prisma-auth-store.ts` | Password reset must terminate all active sessions, not just current device |
-| Add `AccountStatus.SUSPENDED` to enum + admin suspend/reactivate endpoints | `prisma/schema.prisma`, `routes/admin-students.ts` | No suspension state exists; ACTIVE/PENDING is insufficient for account lifecycle |
-| Add account hard-deletion with multi-confirm guard (not readily accessible in UI) | `routes/admin-students.ts`, frontend admin UI | Deletion is permanent; UI must require multiple confirmations |
-| Add session management endpoints: `GET /auth/sessions`, `DELETE /auth/sessions/:id` | `plugins/auth.ts`, `stores/prisma-auth-store.ts` | Web allows multiple concurrent sessions; users need ability to view and revoke individual sessions |
+| Add `AccountStatus.SUSPENDED` to enum + admin suspend/reactivate endpoints; suspension must immediately invalidate all active sessions | `prisma/schema.prisma`, `routes/admin-students.ts`, `auth-service.ts` | No suspension state; suspension must terminate sessions the same way password reset does |
+| Add account hard-deletion with multi-confirm guard (not readily accessible in UI) | `routes/admin-students.ts`, frontend admin UI | Deletion is permanent; data handling on delete TBD — do not implement cascade delete until confirmed |
+| Add session management endpoints: `GET /auth/sessions`, `DELETE /auth/sessions/:id`; enforce max 2 concurrent web sessions | `plugins/auth.ts`, `stores/prisma-auth-store.ts` | Web capped at 2 sessions; overflow behavior TBD; mobile is 1 device at a time |
 | Add `GET /access/me/events` self-view for FACULTY role | `routes/access.ts` | Faculty currently have no route to view their own campus entry/exit logs |
 | Create faculty seed account in `seed.ts` and document credentials | `prisma/seed.ts`, `§21 Demo Runbook` | No faculty seed account exists; FACULTY routing fix cannot be verified without one |
 | Delete dead auth code | `plugins/auth.ts`, `routes/deprecated auth.ts` | Maintenance hazard and code confusion |
@@ -89,8 +89,10 @@ Each step is a self-contained milestone with a clear entry condition (what must 
 | Admin-configurable faculty attendance edit window (default: 48 hours) | `prisma/schema.prisma`, new admin settings route | Default is 48h; admin can set per section/course |
 | Full attendance change audit log (`AttendanceChangeLog`) | `prisma/schema.prisma`, `attendance-service.ts` | Every faculty or admin change must be appended to an immutable log with actor, timestamp, before/after state |
 | Cancelled class handling: exclude from attendance calculation | `prisma/schema.prisma`, `attendance-service.ts` | Cancelled classes excluded from totals; students see "Class Cancelled" not "Absent" |
-| Attendance threshold enforcement: 75% per course + 75% overall | `attendance-service.ts`, alerts system | Group-aware denominator (per-group session counts); flag and alert students below threshold |
-| Excused absence workflow: `ExcuseRequest` model + student submission + admin approval | `prisma/schema.prisma`, new routes, admin UI | Two paths: student-initiated approval workflow, or admin direct override. Faculty cannot set EXCUSED. |
+| Attendance threshold: default 75% per course + overall, admin-configurable per course; LATE counts as PRESENT in % | `attendance-service.ts`, `prisma/schema.prisma` | Group-aware denominator; real-time recalculation; LATE is cosmetic only |
+| Threshold alert schedule: student weekly (course+overall), faculty weekly (mentor section + teaching sections consolidated), admin on-demand only | notification service, scheduled jobs | Three different alert types for three different roles; no single-broadcast approach |
+| Faculty mentor section schema + assignment | `prisma/schema.prisma`, admin routes | Mentor assignments are separate from teaching assignments; required for faculty weekly alerts |
+| Excused absence workflow: `ExcuseRequest` model with reason category enum + written reason + document upload; admin push notification on submission | `prisma/schema.prisma`, new routes, admin UI, file storage | Two paths: student-initiated approval workflow, or admin direct override. Faculty cannot set EXCUSED. |
 | Attendance export (CSV, PDF) | New export route, frontend export button | Required for grade submission and compliance reporting |
 | Add `ClassSessionTemplate.bleBeaconId` field + migration | `prisma/schema.prisma` | Required for server-side BLE classroom-level validation |
 | Server-side BLE validation in `markAttendance()` | `services/attendance-service.ts` | Currently only GPS geofence is server-validated |

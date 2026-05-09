@@ -204,6 +204,21 @@ export class PresenceService {
   }
 
   /**
+   * Get presence overview filtered to a specific set of student IDs (for faculty-scoped view)
+   */
+  async getPresenceOverviewForStudents(studentIds: string[]): Promise<PresenceOverviewResponse> {
+    if (studentIds.length === 0) {
+      return { records: [], geofences: [] };
+    }
+
+    const full = await this.getPresenceOverview();
+    return {
+      records: full.records.filter((r) => studentIds.includes(r.studentId)),
+      geofences: full.geofences,
+    };
+  }
+
+  /**
    * Get all BLE logs (admin/debug function)
    */
   async getBLELogs(): Promise<BLEDetection[]> {

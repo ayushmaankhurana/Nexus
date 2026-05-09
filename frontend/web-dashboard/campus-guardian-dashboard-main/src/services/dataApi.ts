@@ -2,6 +2,7 @@ import { apiGet, apiPost, apiPatch } from "./apiClient";
 import { normalizeUserRole, type User, type AttendanceRecord, type AttendanceSummary, type AccessEvent, type Incident, type Alert, type PresenceRecord, type TracePoint, type SupportIssue, type ActivityEvent, type PaginatedResponse, type AccessRequest } from "@/types";
 import * as mock from "@/mocks/data";
 
+// TODO Phase 2: Set to false once incidents/alerts/activity backend is implemented
 const USE_MOCK = true;
 const USE_MOCK_STUDENT_LOOKUP = false;
 const USE_MOCK_ACCESS = false;

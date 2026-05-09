@@ -168,10 +168,15 @@ const attendance: FastifyPluginAsync = async (fastify) => {
       const parsed = listQuery.safeParse(request.query);
       if (!parsed.success) return validationError(reply, parsed.error);
 
+      // Faculty: auto-scope to their assigned sections
+      const facultyAccountId =
+        request.user.role.toUpperCase() === 'FACULTY' ? request.user.sub : undefined;
+
       const result = await svc.listAttendance({
         ...parsed.data,
         from: parsed.data.from ? new Date(parsed.data.from) : undefined,
         to: parsed.data.to ? new Date(parsed.data.to) : undefined,
+        facultyAccountId,
       });
 
       return result;

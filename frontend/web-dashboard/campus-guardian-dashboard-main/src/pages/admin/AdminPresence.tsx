@@ -53,6 +53,7 @@ export default function AdminPresence() {
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [showAllStudents, setShowAllStudents] = useState(false);
   const dragState = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null);
 
   async function loadOverview() {
@@ -236,7 +237,7 @@ export default function AdminPresence() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <SectionCard title="Last Known Positions">
               <div className="space-y-3">
-                {records.map((record) => (
+                {(showAllStudents ? records : records.slice(0, 10)).map((record) => (
                   <button
                     key={record.id}
                     type="button"
@@ -258,6 +259,15 @@ export default function AdminPresence() {
                     </div>
                   </button>
                 ))}
+                {records.length > 10 && (
+                  <button
+                    type="button"
+                    className="w-full text-center text-sm text-muted-foreground hover:text-foreground py-2 transition-colors"
+                    onClick={() => setShowAllStudents((prev) => !prev)}
+                  >
+                    {showAllStudents ? `Show less` : `Show ${records.length - 10} more students`}
+                  </button>
+                )}
               </div>
             </SectionCard>
 

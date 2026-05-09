@@ -205,4 +205,61 @@ Answer: NO
 
 30. **Deadline / demo date:** Is there a specific demo or submission deadline that the Phase 1 + Phase 2 work needs to hit? This would inform prioritization within Step 1 (security fixes vs. role routing vs. both).
 
-Answer: Not yet. 
+Answer: Not yet.
+
+---
+
+## CLAUDE Questions.md — Round 3 (answered 2026-05-07)
+
+**Q18 — BLE LATE status:**
+If a student accumulates ≥2 BLE detections only from the LATE-window scans, should BLE result in a LATE status?
+
+Answer: Yes, BLE results in a LATE status. However, LATE is cosmetic only for faculty/admin viewing (e.g., to flag late arrivals for possible follow-up). A LATE status counts as PRESENT in all attendance percentage calculations.
+
+**Q19 — Attendance threshold configurability:**
+Should the 75% threshold be a fixed constant or admin-configurable per course?
+
+Answer: Default is 75% for everything but admins may want to change thresholds per course.
+
+**Q20 — Threshold alert recipients:**
+Who gets alerted when a student falls below the threshold?
+
+Answer: Alerts are sent at different intervals to different roles:
+- **Students:** Weekly attendance updates — course-wise + overall attendance percentage.
+- **Faculty:** Weekly attendance overview for students in their mentor section (if they have one), plus a consolidated course-wise attendance overview for each assigned teaching section.
+- **Admin / Department heads:** Consolidated reports on-demand only (not automatic).
+
+**Q21 — Excused absence request detail:**
+What information does the student provide? Does admin get a push notification?
+
+Answer: Reason category + written reason + supporting document upload. Yes, admin receives a push notification when a new excuse request is pending.
+
+**Q22 — Threshold calculation timing:**
+When is the attendance percentage calculated and when are threshold alerts triggered?
+
+Answer: Attendance percentage is calculated constantly (updated in real-time as records change). Threshold-based alerts follow the schedule above (weekly for students/faculty, on-demand for admin/dept heads).
+
+**Q23 — Web session limit:**
+Does the oldest session auto-expire or can sessions accumulate without bound?
+
+Answer: Max session cap of 2 web app devices.
+
+**Q24 — Account deletion data handling:**
+What happens to associated records when a student account is hard-deleted?
+
+Answer: Unsure yet.
+
+**Q25 — Suspension behavior:**
+When an account is SUSPENDED, are active sessions invalidated immediately?
+
+Answer: Active sessions are invalidated immediately.
+
+**Q26 — ERP integration direction and system:**
+What is the ERP system and what direction is the integration?
+
+Answer: Unsure right now, need to ask department admin.
+
+**Q27 — ERP student ID format:**
+What format is the external student ID?
+
+Answer: The student roll number (and possibly email) can be global fields but do not take this as final.

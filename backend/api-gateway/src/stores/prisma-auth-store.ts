@@ -381,6 +381,25 @@ export class PrismaAuthStore {
     return account ? this.mapAccount(account) : null;
   }
 
+  async invalidateAllSessions(accountId: string): Promise<void> {
+    await this.prisma.session.deleteMany({ where: { accountId } });
+  }
+
+  async suspendAccount(accountId: string): Promise<void> {
+    await this.prisma.account.update({
+      where: { id: accountId },
+      data: { status: 'SUSPENDED' as any },
+    });
+    await this.invalidateAllSessions(accountId);
+  }
+
+  async reactivateAccount(accountId: string): Promise<void> {
+    await this.prisma.account.update({
+      where: { id: accountId },
+      data: { status: 'ACTIVE' },
+    });
+  }
+
   async resetPassword(token: string, newPassword: string): Promise<void> {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(newPassword, saltRounds);

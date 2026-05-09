@@ -54,6 +54,13 @@ export default function StudentAlerts() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800 dark:border-amber-800/40 dark:bg-amber-900/20 dark:text-amber-400">
+        <span className="text-lg leading-none">⚙️</span>
+        <div>
+          <p className="text-sm font-medium">Planned Feature</p>
+          <p className="text-sm opacity-80">Push alerts are planned for a future release. Alerts shown here are derived from your live attendance and access data.</p>
+        </div>
+      </div>
       <PageHeader title="My Alerts" description="View notifications, warnings, and system notices." />
       {error ? (
         <ErrorState message={error} />

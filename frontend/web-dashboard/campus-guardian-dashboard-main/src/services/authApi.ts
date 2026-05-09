@@ -1,9 +1,6 @@
 import { apiPost } from "./apiClient";
 import { setAuthToken, getOrCreateDeviceId, getDeviceId } from "./apiClient";
 import { normalizeUserRole, type AuthResponse } from "@/types";
-import { mockStudentUser, mockAdminUser, mockSession } from "@/mocks/data";
-
-const USE_MOCK = false; // Toggle when backend is ready
 
 /**
  * Normalize backend AuthResponse to frontend AuthResponse shape.
@@ -54,17 +51,6 @@ export const authApi = {
   },
 
   async login(identifier: string, password: string): Promise<AuthResponse> {
-    if (USE_MOCK) {
-      await new Promise((r) => setTimeout(r, 800));
-      if (password !== "password") throw { message: "Invalid credentials", status: 401 };
-      const isAdmin = identifier.includes("admin") || identifier.includes("osei");
-      const user = isAdmin ? mockAdminUser : mockStudentUser;
-      const token = `mock-token-${user.role}-${Date.now()}`;
-      setAuthToken(token);
-      localStorage.setItem("nexus_user", JSON.stringify(user));
-      return { token, user, session: { ...mockSession, userId: user.id } };
-    }
-
     // REAL BACKEND: Backend requires { identifier, password, deviceId }
     const deviceId = getOrCreateDeviceId();
     const res = await apiPost<AuthResponse>("/auth/login", {
@@ -76,39 +62,24 @@ export const authApi = {
     // Normalize response and persist
     const normalized = normalizeAuthResponse(res);
     setAuthToken(normalized.token!);
+    if (normalized.refreshToken) {
+      localStorage.setItem("nexus_refresh_token", normalized.refreshToken);
+    }
     localStorage.setItem("nexus_user", JSON.stringify(normalized.user));
     return normalized;
   },
 
-  async activateAccount(activationToken: string, password: string): Promise<AuthResponse> {
-    if (USE_MOCK) {
-      await new Promise((r) => setTimeout(r, 800));
-      const res: AuthResponse = { token: `mock-token-${Date.now()}`, user: mockStudentUser, session: mockSession };
-      setAuthToken(res.token!);
-      localStorage.setItem("nexus_user", JSON.stringify(res.user));
-      return res;
-    }
-
-    // REAL BACKEND: Backend expects { activationToken, password } (not { token, password })
-    const res = await apiPost<AuthResponse>("/auth/activate", {
-      activationToken, // Field name matches backend schema
+  async activateAccount(activationToken: string, password: string): Promise<void> {
+    // REAL BACKEND: Returns { message, account: { studentId, email, status } }
+    // Does NOT return tokens — user must log in separately after activation.
+    await apiPost<{ message: string; account: { studentId: string; email: string; status: string } }>("/auth/activate", {
+      activationToken,
       password,
     });
-
-    const normalized = normalizeAuthResponse(res);
-    setAuthToken(normalized.token!);
-    localStorage.setItem("nexus_user", JSON.stringify(normalized.user));
-    return normalized;
+    // No auto-login; caller redirects to /login.
   },
 
   async logout(): Promise<void> {
-    if (USE_MOCK) {
-      await new Promise((r) => setTimeout(r, 300));
-      setAuthToken(null);
-      localStorage.removeItem("nexus_user");
-      return;
-    }
-
     // REAL BACKEND: Backend requires { studentId, deviceId } in request body
     const user = localStorage.getItem("nexus_user");
     const deviceId = getDeviceId();
@@ -127,14 +98,10 @@ export const authApi = {
 
     setAuthToken(null);
     localStorage.removeItem("nexus_user");
+    localStorage.removeItem("nexus_refresh_token");
   },
 
   async switchDevice(newDeviceId: string): Promise<{ success: boolean }> {
-    if (USE_MOCK) {
-      await new Promise((r) => setTimeout(r, 600));
-      return { success: true };
-    }
-
     // REAL BACKEND: Route is /auth/device/switch (not /auth/switch-device)
     // Backend expects { studentId, oldDeviceId, newDeviceId }
     const user = localStorage.getItem("nexus_user");

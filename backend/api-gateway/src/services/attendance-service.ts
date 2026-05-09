@@ -58,6 +58,8 @@ export type AttendanceFilters = {
   status?: AttendanceStatus;
   page?: number;
   pageSize?: number;
+  /** When set, limits results to sessions belonging to this faculty's assigned sections */
+  facultyAccountId?: string;
 };
 
 export type AttendanceRecordView = {
@@ -305,10 +307,42 @@ export class AttendanceService {
     const pageSize = Math.min(100, Math.max(1, filters.pageSize ?? 20));
     const skip = (page - 1) * pageSize;
 
+    // If facultyAccountId is set, scope to their assigned sections only
+    let allowedTemplateIds: string[] | undefined;
+    if (filters.facultyAccountId) {
+      const assignments = await this.prisma.facultyAssignment.findMany({
+        where: { facultyAccountId: filters.facultyAccountId },
+        select: { sectionId: true },
+      });
+
+      const sectionIds = assignments
+        .map((a) => a.sectionId)
+        .filter((id): id is string => id !== null);
+
+      if (sectionIds.length === 0) {
+        // Faculty has no assigned sections — return empty result
+        return { data: [], total: 0, page, pageSize };
+      }
+
+      const templates = await this.prisma.classSessionTemplate.findMany({
+        where: { sectionId: { in: sectionIds } },
+        select: { id: true },
+      });
+
+      allowedTemplateIds = templates.map((t) => t.id);
+
+      if (allowedTemplateIds.length === 0) {
+        return { data: [], total: 0, page, pageSize };
+      }
+    }
+
     const where: Prisma.AttendanceRecordWhereInput = {
       ...(filters.accountId && { accountId: filters.accountId }),
       ...(filters.classSessionTemplateId && {
         classSessionTemplateId: filters.classSessionTemplateId,
+      }),
+      ...(allowedTemplateIds && {
+        classSessionTemplateId: { in: allowedTemplateIds },
       }),
       ...(filters.status && { status: filters.status }),
       ...((filters.from || filters.to) && {

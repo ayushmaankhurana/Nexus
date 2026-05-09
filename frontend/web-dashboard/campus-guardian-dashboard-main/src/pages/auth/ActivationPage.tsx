@@ -23,7 +23,8 @@ export default function ActivationPage() {
     setLoading(true);
     try {
       await activate(token, password);
-      navigate("/dashboard", { replace: true });
+      // Activation does not return tokens — redirect to login so user can sign in.
+      navigate("/login", { replace: true, state: { message: "Account activated successfully. Please sign in." } });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Activation failed.";
       setError(message);

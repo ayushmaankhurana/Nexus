@@ -1,3 +1,32 @@
+###############################################################################
+# NEXUS API TEST SUITE
+# File: test.http
+# Tool: REST Client extension for VS Code (Extension ID: humao.rest-client)
+#
+# HOW TO RUN:
+#   1. Install the REST Client VS Code extension (humao.rest-client)
+#   2. Start the backend: cd backend/api-gateway && npm run dev
+#   3. Reset/seed the DB: send the "Demo Reset" request at the bottom first
+#   4. Run requests in the MASTER ORDER listed below for least friction
+#   5. Click "Send Request" above each ### block to execute it
+#
+# DYNAMIC VARIABLES:
+#   @name <requestName>   — names a request so its response can be referenced
+#   {{requestName.response.body.field}}  — reads a field from a named response
+#   Variables set with @varName = value  — static variables
+#
+# SEEDED ACCOUNTS (run demo reset first to restore these):
+#   CS21001 / pass123         STUDENT  PENDING  (activation token: activation_token_001)
+#   CS21002 / pass123         STUDENT  ACTIVE   (main test account)
+#   CS21003–CS21006 / pass123 STUDENT  ACTIVE
+#   SEC1001 / secure123       SECURITY ACTIVE
+#   ADM1001 / secure123       ADMIN    ACTIVE
+#   FAC1001 / secure123       FACULTY  ACTIVE   (Dr. Neha Kapoor, CS dept)
+#
+# NOTE: Password reset and activation token values are printed to the
+#       backend server console (not returned in API responses).
+###############################################################################
+
 ### MASTER ORDER
 # Run this file in this order for the least friction:
 # 1. Health.
@@ -785,3 +814,116 @@ Content-Type: application/json
   "resetToken": "{{cs21002NewResetToken}}",
   "newPassword": "pass123"
 }
+
+# ==========================================
+# DOMAIN: DEMO RESET (run this first to restore seed state)
+# ==========================================
+
+### Demo reset — requires x-demo-secret header
+### Preconditions: backend running; DEMO_SECRET env var set (default: nexus-demo-2026)
+### Expected: 200 { success: true, message: "Demo data reset...", resetAt }
+POST {{baseUrl}}/dev/demo/reset
+x-demo-secret: nexus-demo-2026
+Content-Type: application/json
+Accept: application/json
+
+### Demo reset — missing secret header should return 403
+### Expected: 403 { error: { code: "FORBIDDEN" } }
+POST {{baseUrl}}/dev/demo/reset
+Content-Type: application/json
+Accept: application/json
+
+# ==========================================
+# DOMAIN: FACULTY-SCOPED FEATURES
+# ==========================================
+
+### Faculty login — captures JWT with role=FACULTY
+### Preconditions: DB seeded with FAC1001 account
+### Expected: 200 { accessToken, refreshToken, user: { role: "faculty" } }
+# @name facultyLoginScoped
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "identifier": "{{facultyRoll}}",
+  "password": "{{facultyPassword}}",
+  "deviceId": "{{facultyDevice}}"
+}
+
+### Capture faculty token for scoped tests
+@facultyScopedToken = {{facultyLoginScoped.response.body.accessToken}}
+
+### Faculty lists attendance records — auto-scoped to assigned sections only
+### Preconditions: FAC1001 is assigned to Section A; seeded attendance records exist
+### Expected: 200 with records only from ClassSessionTemplates in Section A
+GET {{baseUrl}}/attendance/records?page=1&pageSize=20
+Authorization: Bearer {{facultyScopedToken}}
+Accept: application/json
+
+### Faculty tries to access /admin/students — should be forbidden
+### Expected: 403 FORBIDDEN (faculty cannot manage students)
+GET {{baseUrl}}/admin/students
+Authorization: Bearer {{facultyScopedToken}}
+Accept: application/json
+
+### Faculty accesses presence overview — scoped to assigned students only
+### Expected: 200 with records limited to students in Section A groups
+GET {{baseUrl}}/presence/overview
+Authorization: Bearer {{facultyScopedToken}}
+Accept: application/json
+
+# ==========================================
+# DOMAIN: ADMIN SUSPEND / REACTIVATE
+# ==========================================
+
+### Admin suspends a student account
+### Preconditions: adminToken from adminLoginRequest; use a real student UUID from the seed
+### Expected: 200 { id, status: "suspended", message: "Account suspended" }
+### NOTE: Replace <student_uuid> with an actual UUID from the DB (e.g. from GET /admin/students)
+PATCH {{baseUrl}}/admin/students/{{activeStudentId}}/suspend
+Authorization: Bearer {{adminToken}}
+Accept: application/json
+
+### Admin reactivates the same student account
+### Preconditions: account is in SUSPENDED state
+### Expected: 200 { id, status: "active", message: "Account reactivated" }
+PATCH {{baseUrl}}/admin/students/{{activeStudentId}}/reactivate
+Authorization: Bearer {{adminToken}}
+Accept: application/json
+
+### Student token trying to suspend — should be forbidden
+### Expected: 403 FORBIDDEN
+PATCH {{baseUrl}}/admin/students/{{activeStudentId}}/suspend
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+# ==========================================
+# DOMAIN: DASHBOARD STATS
+# ==========================================
+
+### Admin fetches dashboard aggregate stats
+### Preconditions: adminToken captured from adminLoginRequest
+### Expected: 200 { totalStudents, presentToday, accessEventsToday, activeIncidents }
+### Note: presentToday will be 0 for seeded data (records are for 2026-04-02, not today)
+GET {{baseUrl}}/dashboard/stats
+Authorization: Bearer {{adminToken}}
+Accept: application/json
+
+### Security token fetching dashboard stats — allowed
+### Expected: 200 same shape as admin
+GET {{baseUrl}}/dashboard/stats
+Authorization: Bearer {{securityToken}}
+Accept: application/json
+
+### Student token trying to fetch dashboard stats — should be forbidden
+### Expected: 403 FORBIDDEN
+GET {{baseUrl}}/dashboard/stats
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Faculty token trying to fetch dashboard stats — should be forbidden
+### Expected: 403 FORBIDDEN (faculty uses scoped views, not global stats)
+GET {{baseUrl}}/dashboard/stats
+Authorization: Bearer {{facultyScopedToken}}
+Accept: application/json

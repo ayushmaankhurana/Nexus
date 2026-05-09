@@ -21,6 +21,10 @@ export function isAdminRole(role?: string | null): boolean {
   return normalized === "ADMIN" || normalized === "SECURITY";
 }
 
+export function isFacultyRole(role?: string | null): boolean {
+  return normalizeUserRole(role) === "FACULTY";
+}
+
 export interface User {
   id: string;
   name: string;

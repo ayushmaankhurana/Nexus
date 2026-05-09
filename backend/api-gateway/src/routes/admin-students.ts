@@ -91,6 +91,11 @@ const adminStudentsRoute: FastifyPluginAsync = async (fastify) => {
         activationToken,
       });
 
+      // DEV ONLY: log token to console so admin can send it to the student
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`\n ACTIVATION TOKEN for ${created.email}: ${created.activationToken}\n`);
+      }
+
       return reply.code(201).send({
         id: created.studentId,
         rollNumber: created.rollNumber,
@@ -98,7 +103,54 @@ const adminStudentsRoute: FastifyPluginAsync = async (fastify) => {
         role: created.role,
         status: created.status,
         profile: created.profile,
-        activationToken: created.activationToken,
+      });
+    } catch (error) {
+      return handleError(reply, error);
+    }
+  });
+
+  fastify.patch('/admin/students/:id/suspend', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      await request.jwtVerify();
+
+      const user = request.user as { sub: string; role?: string };
+
+      if (!user?.role || user.role.toUpperCase() !== 'ADMIN') {
+        throw new AppError('FORBIDDEN', 403, 'Admin access required');
+      }
+
+      const { id } = request.params as { id: string };
+
+      await store.suspendAccount(id);
+
+      return reply.code(200).send({
+        id,
+        status: 'suspended',
+        message: 'Account suspended',
+      });
+    } catch (error) {
+      return handleError(reply, error);
+    }
+  });
+
+  fastify.patch('/admin/students/:id/reactivate', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      await request.jwtVerify();
+
+      const user = request.user as { sub: string; role?: string };
+
+      if (!user?.role || user.role.toUpperCase() !== 'ADMIN') {
+        throw new AppError('FORBIDDEN', 403, 'Admin access required');
+      }
+
+      const { id } = request.params as { id: string };
+
+      await store.reactivateAccount(id);
+
+      return reply.code(200).send({
+        id,
+        status: 'active',
+        message: 'Account reactivated',
       });
     } catch (error) {
       return handleError(reply, error);

@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { getDisplayName, getUserInitials } from "@/lib/utils";
-import { isAdminRole, normalizeUserRole } from "@/types";
+import { isAdminRole, isFacultyRole, normalizeUserRole } from "@/types";
 
 const studentNav = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -34,6 +34,12 @@ const adminNav = [
   { title: "Activity Log", url: "/admin/activity", icon: Radio },
 ];
 
+const facultyNav = [
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Attendance", url: "/admin/attendance", icon: CalendarCheck },
+  { title: "Presence Intel", url: "/admin/presence", icon: MapPin },
+];
+
 const sharedNav = [
   { title: "Settings", url: "/settings", icon: Settings },
 ];
@@ -45,7 +51,8 @@ export function AppSidebar() {
   const location = useLocation();
 
   const isAdmin = isAdminRole(user?.role);
-  const navItems = isAdmin ? adminNav : studentNav;
+  const isFaculty = isFacultyRole(user?.role);
+  const navItems = isAdmin ? adminNav : isFaculty ? facultyNav : studentNav;
 
   return (
     <Sidebar collapsible="icon">
@@ -66,7 +73,7 @@ export function AppSidebar() {
       <SidebarContent className="px-2 pt-2">
         <SidebarGroup>
           <SidebarGroupLabel className="text-[10px] uppercase tracking-wider">
-            {isAdmin ? "Operations" : "Menu"}
+            {isAdmin ? "Operations" : isFaculty ? "Faculty" : "Menu"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -121,8 +128,8 @@ export function AppSidebar() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{getDisplayName(user)}</p>
               <div className="flex items-center gap-1.5">
-                <StatusBadge variant={normalizeUserRole(user.role) === "ADMIN" ? "info" : "default"} className="text-[10px] px-1.5 py-0">
-                  {normalizeUserRole(user.role)}
+                <StatusBadge variant={normalizeUserRole(user.role) === "ADMIN" ? "info" : normalizeUserRole(user.role) === "FACULTY" ? "info" : "default"} className="text-[10px] px-1.5 py-0">
+                  {normalizeUserRole(user.role) === "FACULTY" ? "Faculty" : normalizeUserRole(user.role)}
                 </StatusBadge>
               </div>
             </div>

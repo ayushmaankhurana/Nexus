@@ -4,6 +4,7 @@ import type { ApiError } from "@/types";
 const DEVICE_ID_KEY = "nexus_device_id";
 
 let authToken: string | null = localStorage.getItem("nexus_token");
+let isRefreshing = false;
 
 export function getOrCreateDeviceId(): string {
   let deviceId = localStorage.getItem(DEVICE_ID_KEY);
@@ -77,6 +78,43 @@ function parseApiError(body: unknown, status: number, statusText: string): ApiEr
   return { message: statusText, status };
 }
 
+async function tryRefreshToken(): Promise<boolean> {
+  if (isRefreshing) return false;
+  const refreshToken = localStorage.getItem("nexus_refresh_token");
+  const deviceId = getDeviceId();
+  if (!refreshToken || !deviceId) return false;
+
+  isRefreshing = true;
+  try {
+    const res = await fetch(`${ENV.apiUrl}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken, deviceId }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json() as { accessToken?: string; refreshToken?: string };
+    if (data.accessToken) {
+      setAuthToken(data.accessToken);
+      if (data.refreshToken) {
+        localStorage.setItem("nexus_refresh_token", data.refreshToken);
+      }
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  } finally {
+    isRefreshing = false;
+  }
+}
+
+function clearAuthAndRedirect() {
+  setAuthToken(null);
+  localStorage.removeItem("nexus_user");
+  localStorage.removeItem("nexus_refresh_token");
+  window.location.href = "/login";
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let errorBody: ApiError;
@@ -87,9 +125,12 @@ async function handleResponse<T>(response: Response): Promise<T> {
       errorBody = { message: response.statusText, status: response.status };
     }
     if (response.status === 401) {
-      setAuthToken(null);
-      localStorage.removeItem("nexus_user");
-      window.location.href = "/login";
+      // Only attempt refresh if this is not already a refresh call
+      const refreshed = await tryRefreshToken();
+      if (!refreshed) {
+        clearAuthAndRedirect();
+      }
+      // If refreshed, caller should retry — throw so caller can catch and retry
     }
     throw new ApiHttpError(errorBody, response.status);
   }
@@ -100,37 +141,62 @@ async function handleResponse<T>(response: Response): Promise<T> {
 export async function apiGet<T>(path: string, params?: Record<string, string>): Promise<T> {
   const url = new URL(`${ENV.apiUrl}${path}`);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString(), {
-    headers: {
-      "Content-Type": "application/json",
-      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-    },
-  });
-  return handleResponse<T>(res);
+  const makeRequest = () =>
+    fetch(url.toString(), {
+      headers: {
+        "Content-Type": "application/json",
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+    });
+  try {
+    return await handleResponse<T>(await makeRequest());
+  } catch (err) {
+    if (err instanceof ApiHttpError && err.status === 401 && authToken) {
+      // Token was refreshed in handleResponse; retry once with new token
+      return await handleResponse<T>(await makeRequest());
+    }
+    throw err;
+  }
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   const hasBody = body !== undefined;
-  const res = await fetch(`${ENV.apiUrl}${path}`, {
-    method: "POST",
-    headers: {
-      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-      ...(hasBody ? { "Content-Type": "application/json" } : {}),
-    },
-    body: hasBody ? JSON.stringify(body) : undefined,
-  });
-  return handleResponse<T>(res);
+  const makeRequest = () =>
+    fetch(`${ENV.apiUrl}${path}`, {
+      method: "POST",
+      headers: {
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      },
+      body: hasBody ? JSON.stringify(body) : undefined,
+    });
+  try {
+    return await handleResponse<T>(await makeRequest());
+  } catch (err) {
+    if (err instanceof ApiHttpError && err.status === 401 && authToken) {
+      return await handleResponse<T>(await makeRequest());
+    }
+    throw err;
+  }
 }
 
 export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
   const hasBody = body !== undefined;
-  const res = await fetch(`${ENV.apiUrl}${path}`, {
-    method: "PATCH",
-    headers: {
-      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-      ...(hasBody ? { "Content-Type": "application/json" } : {}),
-    },
-    body: hasBody ? JSON.stringify(body) : undefined,
-  });
-  return handleResponse<T>(res);
+  const makeRequest = () =>
+    fetch(`${ENV.apiUrl}${path}`, {
+      method: "PATCH",
+      headers: {
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      },
+      body: hasBody ? JSON.stringify(body) : undefined,
+    });
+  try {
+    return await handleResponse<T>(await makeRequest());
+  } catch (err) {
+    if (err instanceof ApiHttpError && err.status === 401 && authToken) {
+      return await handleResponse<T>(await makeRequest());
+    }
+    throw err;
+  }
 }

@@ -412,18 +412,32 @@ If Faculty A substitutes for Faculty B on a specific date, Faculty A is given a 
 
 ### Attendance Percentage Threshold
 
-A minimum attendance threshold of **75% per course** and **75% overall** is enforced. The system flags and alerts when a student falls below the threshold.
+A minimum attendance threshold of **75% per course** and **75% overall** is enforced by default. Admins can configure the threshold per course (e.g., 90% for lab courses). The attendance percentage is **recalculated in real-time** whenever an attendance record changes — there is no batch recalculation step.
 
-**Group-aware denominator:** A section may have sessions for all groups or for a specific group only. The denominator for each student's attendance percentage counts only the sessions their group was scheduled to attend — not all sessions in the section. This ensures students in Group A are not penalized for Group B-only sessions.
+**Group-aware denominator:** A section may have sessions for all groups or for a specific group only. The denominator for each student's attendance percentage counts only the sessions their group was scheduled to attend. Students in Group A are never penalized for Group B-only sessions.
 
-The threshold applies to each student's enrollment. Alerts are generated at the course and overall level. (Alert recipients and threshold configurability — see open questions.)
+**LATE counts as PRESENT in calculations.** The LATE status is cosmetic — it appears in faculty/admin session views to flag late arrivals, but contributes to the PRESENT count in all attendance percentage and threshold calculations.
+
+**Alert schedule by role:**
+
+| Role | Alert | Frequency | Scope |
+|---|---|---|---|
+| **Student** | Course-wise + overall attendance % | Weekly | Own enrollment |
+| **Faculty** | Attendance overview for mentor section students | Weekly | Students in mentor section (if assigned) |
+| **Faculty** | Course-wise attendance overview per assigned teaching section | Weekly | All students in assigned sections (consolidated) |
+| **Admin / Dept Head** | Consolidated attendance report | **On-demand only** (no automatic push) | Campus-wide or dept-scoped |
 
 ### Excused Absences
 
 Only **ADMIN** can mark an attendance record as `EXCUSED`. Two paths are supported:
 
 1. **Direct override:** Admin navigates to the attendance record and sets status to `EXCUSED` directly.
-2. **Student-initiated workflow:** Student submits an excuse request through the web app. The request appears in an admin queue. Admin approves or rejects it. Approval updates the `AttendanceRecord` status to `EXCUSED` and logs the change in `AttendanceChangeLog`.
+2. **Student-initiated workflow:** Student submits an excuse request containing:
+   - **Reason category** (closed list — e.g., Medical, Family Emergency, Official Event, Religious Observance, Other)
+   - **Written reason** (free text)
+   - **Supporting document** (file upload — format and storage TBD per open question)
+   
+   The request enters an admin queue. Admin receives a **push notification** when a new request is pending. Admin approves or rejects it. Approval updates the `AttendanceRecord` status to `EXCUSED` and appends an `AttendanceChangeLog` entry.
 
 Faculty cannot set `EXCUSED` status — this is admin-only.
 
@@ -443,7 +457,8 @@ Attendance records are exportable in CSV and PDF formats for grade submission an
 | BLE scan schedule | 5 scans: 3 in 0–10 min, 2 in 10–30 min | Student needs ≥2 detections to be marked present via BLE |
 | QR generation window | Class start time to end time + 5 minutes | Faculty may generate QR at any point in this window; QR is optional |
 | GPS push rate limit | Max 3 pushes per 90-second rolling window | Client-enforced debounce to prevent push burst on rapid app reopen |
-| Attendance threshold | 75% per course, 75% overall | System flags and alerts when student falls below threshold |
+| Attendance threshold | 75% default (admin-configurable per course) | LATE counts as PRESENT; percentage recalculated in real-time; alerts per schedule |
+| Web session cap | 2 concurrent web sessions per account | 3rd login behavior TBD (see open question) |
 
 ---
 
@@ -733,8 +748,11 @@ POST /incidents     → { id: 'incident-123' }  ← no DB write
 - No `BleDetection` scan-count aggregation per session — the 5-scan / ≥2-detected rule requires either storing individual scan events and aggregating, or maintaining a per-session scan count. Current `BleDetection` table stores individual detections but has no session-scoped tally.
 - `bleBeaconId` format undefined — must support both iBeacon (UUID/major/minor composite) and Eddystone (UID/URL). Field should store a normalized beacon descriptor, not a raw hardware-specific ID.
 - No `externalStudentId` field on `StudentProfile` — needed for future student ERP integration. Field should be nullable and indexed.
-- No per-course attendance threshold config — 75% is the system default; if thresholds should be configurable per course, a config model is required. (Whether it's configurable is an open question.)
-- No `Session` listing endpoint — web allows multiple concurrent sessions; need `GET /auth/sessions` to enumerate and `DELETE /auth/sessions/:id` to revoke individual sessions.
+- No per-course attendance threshold config model — threshold is configurable per course (default 75%); requires a `AttendanceThresholdConfig` model or similar.
+- `ExcuseRequest` model needs: reason category enum, written reason text, document upload reference, admin notification flag, status (PENDING/APPROVED/REJECTED), resolution actor, resolution timestamp.
+- No `FacultyMentorAssignment` or equivalent — "mentor section" is referenced in alert logic but has no schema representation. A faculty can be a mentor to a group of students (separate from teaching assignment).
+- No web session cap enforcement — max 2 concurrent web sessions per account; overflow behavior (reject or revoke oldest) TBD.
+- No `Session` listing endpoint — need `GET /auth/sessions` to enumerate and `DELETE /auth/sessions/:id` to revoke individual sessions.
 
 ---
 
@@ -860,8 +878,8 @@ function canReadPresence(request): boolean {
 - Delete dead auth code (S8, S9)
 - Add frontend token refresh and boot verification (S6, S7)
 - Invalidate all refresh tokens across all devices on password reset
-- Add `AccountStatus.SUSPENDED` — admin can suspend/reactivate accounts (reversible); add deletion flow with multi-confirm guard
-- Add session management endpoints (`GET /auth/sessions`, `DELETE /auth/sessions/:id`) — web supports multiple concurrent sessions; mobile is one device at a time
+- Add `AccountStatus.SUSPENDED` — admin can suspend/reactivate accounts (reversible); suspension immediately invalidates all active sessions; add deletion flow with multi-confirm guard
+- Add session management endpoints (`GET /auth/sessions`, `DELETE /auth/sessions/:id`) — web capped at 2 concurrent sessions; mobile is 1 device at a time
 - Add faculty self-view of campus access events (`/access/me/events`)
 - Create faculty seed account in `seed.ts`
 - **Fix FACULTY frontend routing and backend scoping** ← Current sprint
@@ -885,8 +903,9 @@ function canReadPresence(request): boolean {
 - Admin-configurable faculty attendance edit window (default 48h, per section/course)
 - Cancelled class handling: flag, exclusion from calculation, "Class Cancelled" student view
 - Substitute faculty: date-scoped `FacultyAssignment` one-off
-- Attendance threshold enforcement: 75% per course (group-aware denominator) + 75% overall; flag and alert below threshold
-- Excused absence workflow: admin direct override + student-initiated request queue with admin approval
+- Attendance threshold: default 75%, admin-configurable per course; LATE counts as PRESENT; real-time recalculation; alert schedule (student weekly, faculty weekly, admin on-demand)
+- Faculty mentor section relationship — schema for faculty-to-student mentoring (separate from teaching assignment); used for weekly faculty attendance alerts
+- Excused absence workflow: reason category + written reason + document upload + admin push notification; admin direct override OR student approval queue
 - Attendance export (CSV, PDF) for faculty and admin
 - Add `ClassSessionTemplate.bleBeaconId` schema field for server-side BLE classroom validation
 - Per-geofence-type freshness threshold (configurable defaults for classroom/staircase/parking/cafeteria)
@@ -1073,17 +1092,21 @@ A production release is blocked if any of the following are true:
 | Committed `.env` credentials | High | Phase 1 |
 | Multi-device refresh token invalidation on password reset | High | Phase 1 |
 | Faculty self-view of campus access events | Medium | Phase 1 |
-| `AccountStatus.SUSPENDED` — no suspension state in enum | High | Phase 1 |
+| `AccountStatus.SUSPENDED` — no suspension state; suspension must invalidate all sessions | High | Phase 1 |
 | Account deletion flow with multi-confirm guard | Medium | Phase 1 |
+| Web session cap (max 2) — no enforcement or overflow behavior | Medium | Phase 1 |
 | Session management endpoints (`GET /auth/sessions`, `DELETE /auth/sessions/:id`) | Medium | Phase 1 |
 | `PresenceLocation` data retention policy + cleanup job | Medium | Phase 4 |
 | BLE 5-scan schedule and ≥2-detection threshold logic | High | Phase 3 |
 | BLE dual-format support: iBeacon + Eddystone | Medium | Phase 3 |
 | QR generation window enforcement (start to end+5min) | Low | Phase 3 |
 | Default 48h faculty attendance edit window (currently no edit window at all) | High | Phase 3 |
-| Attendance threshold (75% per course, 75% overall) — no calculation or alerting | High | Phase 3 |
+| Attendance threshold (default 75%, configurable per course) — no calculation or alerting | High | Phase 3 |
 | Group-aware attendance denominator (per-group session counts) | Medium | Phase 3 |
-| Excused absence workflow model (`ExcuseRequest`) | Medium | Phase 3 |
+| LATE status counts as PRESENT in % calculation — not yet enforced | Medium | Phase 3 |
+| Threshold alert schedule (weekly students/faculty, on-demand admin) — no notification system | High | Phase 3 |
+| Faculty mentor section relationship — no schema for mentoring (separate from teaching) | Medium | Phase 3 |
+| Excused absence workflow model (`ExcuseRequest`) with doc upload, reason category, admin push | Medium | Phase 3 |
 | GPS push rate limiting on server side (max 3 per 90s) | Low | Phase 3 |
 | `externalStudentId` field on `StudentProfile` for ERP integration | Low | Phase 3 |
 | DEPT_ADMIN sub-role | Low | Phase 4+ |
