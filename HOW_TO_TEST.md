@@ -52,6 +52,8 @@ DEMO_SECRET="nexus-demo-2026"
 NODE_ENV="development"
 ```
 
+You can verify local setup with `scripts/setup-check.sh` from the repo root.
+
 ### 3. Create frontend `.env`
 
 Create `frontend/web-dashboard/campus-guardian-dashboard-main/.env`:
@@ -107,7 +109,7 @@ curl -X POST http://localhost:3000/dev/demo/reset \
   -H "x-demo-secret: nexus-demo-2026"
 ```
 
-Or use the `test.http` request (see the Demo Reset section at the bottom of that file).
+Or use the `test.http` request (see the Demo Reset section at the bottom of that file). You can also run `scripts/reset-demo.sh` from the repo root; it reads `DEMO_SECRET` from `backend/api-gateway/.env`.
 
 **What the seed creates:**
 - All 9 accounts (see credentials table below)

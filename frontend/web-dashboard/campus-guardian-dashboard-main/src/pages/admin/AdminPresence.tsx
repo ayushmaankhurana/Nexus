@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Circle, CircleMarker, MapContainer, Polyline, Popup, TileLayer } from "react-leaflet";
 import { PageHeader, SectionCard } from "@/components/shared/PageComponents";
 import { StatusBadge, getStatusVariant } from "@/components/shared/StatusBadge";
 import { ErrorState, LoadingState } from "@/components/shared/StateComponents";
 import { presenceApi, type PresenceOverview } from "@/services/dataApi";
-import type { PresenceRecord, TracePoint } from "@/types";
+import type { TracePoint } from "@/types";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { MapPin, Signal, Clock, AlertTriangle, Radio, ZoomIn, ZoomOut, RefreshCcw, Move } from "lucide-react";
+import { MapPin, Signal, Clock, AlertTriangle, Radio, Move } from "lucide-react";
 import { StatCard } from "@/components/shared/StatCard";
 
 function formatMapPoint(lat: number | null | undefined, lng: number | null | undefined): string {
@@ -15,31 +16,6 @@ function formatMapPoint(lat: number | null | undefined, lng: number | null | und
   }
 
   return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-}
-
-function buildMapProjection(records: PresenceRecord[], geofences: PresenceOverview["geofences"], trace: TracePoint[]) {
-  const coordinatePool = [
-    ...geofences.map((item) => ({ lat: item.lat, lng: item.lng })),
-    ...records.filter((item) => item.lat !== null && item.lat !== undefined && item.lng !== null && item.lng !== undefined).map((item) => ({ lat: item.lat as number, lng: item.lng as number })),
-    ...trace.filter((item) => item.lat !== undefined && item.lng !== undefined).map((item) => ({ lat: item.lat as number, lng: item.lng as number })),
-  ];
-
-  if (coordinatePool.length === 0) {
-    return null;
-  }
-
-  const lats = coordinatePool.map((point) => point.lat);
-  const lngs = coordinatePool.map((point) => point.lng);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-
-  return (lat: number, lng: number) => {
-    const x = maxLng === minLng ? 50 : ((lng - minLng) / (maxLng - minLng)) * 100;
-    const y = maxLat === minLat ? 50 : 100 - ((lat - minLat) / (maxLat - minLat)) * 100;
-    return { x, y };
-  };
 }
 
 export default function AdminPresence() {
@@ -51,10 +27,7 @@ export default function AdminPresence() {
   const [traceLoading, setTraceLoading] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
   const [showAllStudents, setShowAllStudents] = useState(false);
-  const dragState = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null);
 
   async function loadOverview() {
     try {
@@ -116,8 +89,26 @@ export default function AdminPresence() {
   const missing = records.filter((record) => record.status === "missing").length;
   const uniqueCheckpoints = new Set(records.filter((record) => record.checkpoint !== "No recent signal").map((record) => record.checkpoint)).size;
   const selectedRecord = records.find((record) => record.studentId === selectedStudentId) ?? records[0] ?? null;
-  const projection = useMemo(() => buildMapProjection(records, geofences, trace), [records, geofences, trace]);
   const traceSegments = useMemo(() => trace.filter((point) => point.lat !== undefined && point.lng !== undefined), [trace]);
+  const studentsWithCoordinates = useMemo(() => records.filter((record) => record.lat !== null && record.lat !== undefined && record.lng !== null && record.lng !== undefined), [records]);
+  const campusCenter = useMemo<[number, number] | null>(() => {
+    const coordinatePool = [
+      ...geofences.map((item) => ({ lat: item.lat, lng: item.lng })),
+      ...studentsWithCoordinates.map((item) => ({ lat: item.lat as number, lng: item.lng as number })),
+      ...traceSegments.map((item) => ({ lat: item.lat as number, lng: item.lng as number })),
+    ];
+
+    if (coordinatePool.length === 0) {
+      return null;
+    }
+
+    const totals = coordinatePool.reduce(
+      (acc, point) => ({ lat: acc.lat + point.lat, lng: acc.lng + point.lng }),
+      { lat: 0, lng: 0 }
+    );
+
+    return [totals.lat / coordinatePool.length, totals.lng / coordinatePool.length];
+  }, [geofences, studentsWithCoordinates, traceSegments]);
   const simulationTargets = useMemo(() => {
     return geofences.filter((geofence) => ["Main Campus Gate", "Back Campus Gate", "CS-101 Lecture Hall", "CS-102 Lecture Hall", "CS-103 Lab", "Parking Zone A"].includes(geofence.name));
   }, [geofences]);
@@ -168,45 +159,6 @@ export default function AdminPresence() {
     } finally {
       setSimulating(false);
     }
-  }
-
-  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    dragState.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: pan.x,
-      originY: pan.y,
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
-    if (!dragState.current || dragState.current.pointerId !== event.pointerId) {
-      return;
-    }
-
-    const deltaX = event.clientX - dragState.current.startX;
-    const deltaY = event.clientY - dragState.current.startY;
-    setPan({
-      x: dragState.current.originX + deltaX,
-      y: dragState.current.originY + deltaY,
-    });
-  }
-
-  function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
-    if (dragState.current?.pointerId === event.pointerId) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-      dragState.current = null;
-    }
-  }
-
-  function handleWheel(event: React.WheelEvent<HTMLDivElement>) {
-    event.preventDefault();
-    setZoom((currentZoom) => {
-      const nextZoom = event.deltaY < 0 ? currentZoom + 0.12 : currentZoom - 0.12;
-      return Math.min(2.4, Math.max(0.75, Number(nextZoom.toFixed(2))));
-    });
   }
 
   return (
@@ -316,17 +268,9 @@ export default function AdminPresence() {
             )}
           </SectionCard>
 
-          <SectionCard title="Movement Map" description="Live geofence and last-known-position projection based on seeded campus coordinates.">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="text-xs text-muted-foreground">Drag to pan. Scroll or use controls to zoom.</div>
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setZoom((value) => Math.max(0.75, Number((value - 0.12).toFixed(2))))}><ZoomOut className="h-4 w-4" /></Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => setZoom((value) => Math.min(2.4, Number((value + 0.12).toFixed(2))))}><ZoomIn className="h-4 w-4" /></Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}><RefreshCcw className="h-4 w-4 mr-1.5" />Reset View</Button>
-              </div>
-            </div>
-            <div className="h-80 rounded-lg border bg-muted/30 relative overflow-hidden cursor-grab active:cursor-grabbing" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onWheel={handleWheel}>
-              {!projection ? (
+          <SectionCard title="Movement Map" description="Live geofence and last-known-position map based on seeded campus coordinates.">
+            <div className="rounded-lg border bg-muted/30 relative overflow-hidden" style={{ height: "500px", width: "100%" }}>
+              {!campusCenter ? (
                 <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground">
                   <div>
                     <MapPin className="h-8 w-8 mx-auto mb-2" />
@@ -334,54 +278,58 @@ export default function AdminPresence() {
                   </div>
                 </div>
               ) : (
-                <div className="absolute inset-0 origin-center" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
-                  <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    {traceSegments.map((point, index) => {
-                      if (index === traceSegments.length - 1) return null;
-                      const current = projection(point.lat as number, point.lng as number);
-                      const next = projection(traceSegments[index + 1].lat as number, traceSegments[index + 1].lng as number);
-                      return <line key={`${point.timestamp}-${index}`} x1={current.x} y1={current.y} x2={next.x} y2={next.y} stroke="currentColor" strokeOpacity="0.35" strokeWidth="0.7" className="text-primary" />;
-                    })}
-                  </svg>
+                <MapContainer center={campusCenter} zoom={16} style={{ height: "500px", width: "100%" }} scrollWheelZoom>
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
 
-                  {geofences.map((geofence) => {
-                    const point = projection(geofence.lat, geofence.lng);
-                    return (
-                      <div key={geofence.id} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${point.x}%`, top: `${point.y}%` }}>
-                        <div className="h-3 w-3 rounded-full border-2 border-background bg-sky-500 shadow" />
-                        <div className="mt-1 rounded bg-background/90 px-2 py-1 text-[10px] text-foreground shadow">
-                          {geofence.name}
+                  {geofences.map((geofence) => (
+                    <Circle
+                      key={geofence.id}
+                      center={[geofence.lat, geofence.lng]}
+                      radius={geofence.radius ?? 20}
+                      pathOptions={{ color: "#0284c7", fillColor: "#38bdf8", fillOpacity: 0.14, weight: 2 }}
+                    >
+                      <Popup>
+                        <div className="space-y-1">
+                          <p className="font-medium">{geofence.name}</p>
+                          <p>{geofence.type}</p>
+                          <p>Radius: {geofence.radius ?? 20}m</p>
                         </div>
-                      </div>
-                    );
-                  })}
+                      </Popup>
+                    </Circle>
+                  ))}
 
-                  {records.filter((record) => record.lat !== null && record.lng !== null).map((record) => {
-                    const point = projection(record.lat as number, record.lng as number);
-                    const isSelected = record.studentId === selectedStudentId;
-                    return (
-                      <button
-                        key={record.studentId}
-                        type="button"
-                        className="absolute -translate-x-1/2 -translate-y-1/2 text-left"
-                        style={{ left: `${point.x}%`, top: `${point.y}%` }}
-                        onClick={() => setSelectedStudentId(record.studentId)}
-                      >
-                        <div className={`h-4 w-4 rounded-full border-2 border-background shadow ${isSelected ? "bg-primary scale-110" : record.status === "active" ? "bg-emerald-500" : record.status === "inactive" ? "bg-amber-500" : "bg-slate-400"}`} />
-                      </button>
-                    );
-                  })}
-
-                  {selectedRecord && (
-                    <div className="absolute bottom-3 right-3 rounded-lg bg-background/95 p-3 text-xs shadow border max-w-[240px]">
-                      <p className="font-medium text-sm">{selectedRecord.studentName}</p>
-                      <p className="text-muted-foreground">{selectedRecord.rollNumber}</p>
-                      <p className="mt-2">Checkpoint: {selectedRecord.checkpoint}</p>
-                      <p>Status: <span className="capitalize">{selectedRecord.status}</span></p>
-                      <p>Coords: {formatMapPoint(selectedRecord.lat, selectedRecord.lng)}</p>
-                    </div>
+                  {traceSegments.length > 1 && (
+                    <Polyline
+                      positions={traceSegments.map((point) => [point.lat as number, point.lng as number])}
+                      pathOptions={{ color: "#2563eb", opacity: 0.65, weight: 3 }}
+                    />
                   )}
-                </div>
+
+                  {studentsWithCoordinates.map((record) => {
+                    const isSelected = record.studentId === selectedStudentId;
+                    const color = isSelected ? "#2563eb" : record.status === "active" ? "#22c55e" : record.status === "inactive" ? "#f59e0b" : "#94a3b8";
+
+                    return (
+                      <CircleMarker
+                        key={record.studentId}
+                        center={[record.lat as number, record.lng as number]}
+                        radius={isSelected ? 8 : 6}
+                        pathOptions={{ color, fillColor: color, fillOpacity: 0.9, weight: 2 }}
+                        eventHandlers={{ click: () => setSelectedStudentId(record.studentId) }}
+                      >
+                        <Popup>
+                          <div className="space-y-1">
+                            <p className="font-medium">{record.studentName}</p>
+                            <p>{record.rollNumber}</p>
+                            <p>Checkpoint: {record.checkpoint}</p>
+                            <p>Status: {record.status}</p>
+                            <p>Coords: {formatMapPoint(record.lat, record.lng)}</p>
+                          </div>
+                        </Popup>
+                      </CircleMarker>
+                    );
+                  })}
+                </MapContainer>
               )}
             </div>
           </SectionCard>

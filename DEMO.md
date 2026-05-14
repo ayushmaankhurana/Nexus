@@ -21,6 +21,7 @@
   ```bash
   curl -X POST http://localhost:3000/dev/demo/reset -H "x-demo-secret: nexus-demo-2026"
   ```
+  Or run `scripts/reset-demo.sh` from the repo root.
 - [ ] Zoom browser to 90% for more screen real estate
 
 ---

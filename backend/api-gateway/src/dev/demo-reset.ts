@@ -235,6 +235,7 @@ export async function seedDemoDatabase(prisma: PrismaClient): Promise<void> {
   // so the map shows a 2-D campus layout instead of a diagonal line.
   // Main/Back Gates on the N-S axis; CS block to the east; Library north-east;
   // Canteen at centre; Parking + Sports to the south-west.
+  // TODO: replace with validated campus coordinates once the team confirms the real campus map points.
   const mainGate = await prisma.geofence.create({ data: { name: 'Main Campus Gate',    type: 'GATE',      coordinates: { lat: 28.4072, lng: 77.3180 }, radius: 50.0 } });
   const backGate = await prisma.geofence.create({ data: { name: 'Back Campus Gate',    type: 'GATE',      coordinates: { lat: 28.4110, lng: 77.3165 }, radius: 45.0 } });
                    await prisma.geofence.create({ data: { name: 'CS Building',         type: 'BUILDING',  coordinates: { lat: 28.4091, lng: 77.3200 }, radius: 80.0 } });
