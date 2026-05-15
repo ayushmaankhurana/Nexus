@@ -12,10 +12,27 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
 
-  if (isLoading) return <LoadingState className="min-h-screen" />;
-  if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/unauthorized" replace />;
+  if (isLoading) {
+    return <LoadingState className="min-h-screen" />;
   }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    return (
+      <Navigate
+        to="/unauthorized"
+        replace
+        state={{
+          attemptedPath: location.pathname,
+          requiredRoles: allowedRoles,
+          currentRole: user.role,
+        }}
+      />
+    );
+  }
+
   return <>{children}</>;
 }

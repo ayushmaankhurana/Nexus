@@ -9,6 +9,8 @@ import ActivationPage from "@/pages/auth/ActivationPage";
 import UnauthorizedPage from "@/pages/UnauthorizedPage";
 import NotFound from "@/pages/NotFound";
 import SettingsPage from "@/pages/SettingsPage";
+import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
+import ResetPasswordPage from "@/pages/auth/ResetPasswordPage";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
@@ -49,6 +51,8 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/activate" element={<ActivationPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
